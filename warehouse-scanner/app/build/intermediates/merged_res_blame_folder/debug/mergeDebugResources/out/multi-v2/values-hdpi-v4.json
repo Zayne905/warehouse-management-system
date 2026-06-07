@@ -1,0 +1,20 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.warehouse.scanner.app-mergeDebugResources-63:/values-hdpi-v4/values-hdpi-v4.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\snoa_\\.gradle\\caches\\9.3.0\\transforms\\cf477114ec437303bde74dba6a18e406\\workspace\\transformed\\appcompat-1.6.1\\res\\values-hdpi-v4\\values-hdpi-v4.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "6",
+                        "endColumns": "13",
+                        "endOffsets": "327"
+                    }
+                }
+            ]
+        }
+    ]
+}

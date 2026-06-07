@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn compile *)",
+      "Bash(sc query *)",
+      "Bash(node -e \"const bcrypt = require\\('bcryptjs'\\); console.log\\(bcrypt.hashSync\\('admin123', bcrypt.genSaltSync\\(10\\)\\)\\);\")",
+      "Bash(npx -y bcryptjs-cli hash admin123)"
+    ]
+  }
+}

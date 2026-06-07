@@ -1,0 +1,44 @@
+- generic [ref=e35]:
+  - complementary [ref=e36]:
+    - generic [ref=e37]:
+      - generic [ref=e38]: 📦 仓储管理系统
+      - menubar [ref=e39]:
+        - menuitem "首页" [active] [ref=e40] [cursor=pointer]:
+          - img [ref=e42]
+          - generic [ref=e44]: 首页
+        - menuitem "仓库管理" [expanded] [ref=e45]:
+          - generic [ref=e46] [cursor=pointer]:
+            - img [ref=e48]
+            - generic [ref=e52]: 仓库管理
+            - img [ref=e54]
+          - menu [ref=e100]:
+            - menuitem "仓库列表" [ref=e101] [cursor=pointer]:
+              - img [ref=e103]
+              - generic [ref=e105]: 仓库列表
+            - menuitem "库区管理" [ref=e106] [cursor=pointer]:
+              - img [ref=e108]
+              - generic [ref=e110]: 库区管理
+        - menuitem "库存管理" [ref=e56]:
+          - generic [ref=e57] [cursor=pointer]:
+            - img [ref=e59]
+            - generic [ref=e61]: 库存管理
+            - img [ref=e63]
+        - menuitem "系统管理" [ref=e65]:
+          - generic [ref=e66] [cursor=pointer]:
+            - img [ref=e68]
+            - generic [ref=e70]: 系统管理
+            - img [ref=e72]
+  - generic [ref=e74]:
+    - generic [ref=e76]:
+      - generic [ref=e77]:
+        - tablist [ref=e81]:
+          - tab "首页" [selected] [ref=e82]:
+            - generic [ref=e83]: 首页
+        - generic:
+          - tabpanel "首页"
+      - button [ref=e87] [cursor=pointer]:
+        - img [ref=e89]
+    - main [ref=e91]:
+      - generic [ref=e92]:
+        - heading "📊 首页" [level=2] [ref=e93]
+        - paragraph [ref=e94]: 欢迎使用仓储管理系统
