@@ -22,7 +22,13 @@ request.interceptors.request.use(
 
 request.interceptors.response.use(
   (response) => {
-    return response.data
+    const data = response.data
+    // 检查业务错误码
+    if (data && data.code !== 200) {
+      ElMessage.error(data.message || '请求失败')
+      return Promise.reject(new Error(data.message || '请求失败'))
+    }
+    return data
   },
   (error) => {
     if (error.response?.status === 401) {

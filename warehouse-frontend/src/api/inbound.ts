@@ -53,6 +53,15 @@ export function deleteInboundApi(id: number): Promise<{
   return request.post('/inbound-order/delete', { id })
 }
 
+// 作废入库单
+export function cancelInboundApi(id: number): Promise<{
+  code: number
+  message: string
+  data: null
+}> {
+  return request.post('/inbound-order/cancel', { id })
+}
+
 // 批量复制零件
 export function batchCopyPartsApi(dto: BatchOperationDTO): Promise<{
   code: number

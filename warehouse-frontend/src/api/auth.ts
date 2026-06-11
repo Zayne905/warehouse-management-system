@@ -8,6 +8,7 @@ export interface LoginParams {
 export interface LoginResult {
   token: string
   nickname: string
+  role: string
 }
 
 export interface UserInfo {
