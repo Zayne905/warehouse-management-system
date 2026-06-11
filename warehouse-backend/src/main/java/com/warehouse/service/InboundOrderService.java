@@ -213,6 +213,28 @@ public class InboundOrderService {
         inboundOrderMapper.deleteById(id);
     }
 
+    // ==================== 作废 ====================
+
+    @Transactional
+    public void cancel(Long id) {
+        InboundOrder order = inboundOrderMapper.selectById(id);
+        if (order == null) {
+            throw new RuntimeException("入库单不存在");
+        }
+        boolean isAdmin = SecurityUtils.isAdmin();
+        if (!isAdmin) {
+            throw new RuntimeException("只有管理员才能作废入库单");
+        }
+        if (order.getStatus() == null) {
+            throw new RuntimeException("入库单状态异常，无法作废");
+        }
+        if (order.getStatus() == InboundStatus.CANCELLED.getCode()) {
+            throw new RuntimeException("该入库单已经是作废状态");
+        }
+        order.setStatus(InboundStatus.CANCELLED.getCode());
+        inboundOrderMapper.updateById(order);
+    }
+
     // ==================== 批量操作 ====================
 
     @Transactional

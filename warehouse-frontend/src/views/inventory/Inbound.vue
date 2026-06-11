@@ -88,7 +88,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="170" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <el-button
               size="small"
@@ -106,6 +106,16 @@
               @click="handleEdit(row)"
             >
               修改
+            </el-button>
+            <el-button
+              v-if="authStore.role === 'admin'"
+              size="small"
+              type="warning"
+              link
+              :disabled="row.status === 3"
+              @click="handleCancel(row)"
+            >
+              作废
             </el-button>
             <el-button
               size="small"
@@ -128,8 +138,8 @@
           :page-sizes="[10, 20, 50]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSearch"
-          @current-change="handleSearch"
+          @size-change="handlePageSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -141,7 +151,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import { listInboundApi, deleteInboundApi } from '@/api/inbound'
+import { listInboundApi, deleteInboundApi, cancelInboundApi } from '@/api/inbound'
 import { getSupplierListApi } from '@/api/supplier'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -217,6 +227,15 @@ function handleSearch() {
   fetchData()
 }
 
+function handlePageSizeChange() {
+  query.current = 1
+  fetchData()
+}
+
+function handlePageChange() {
+  fetchData()
+}
+
 function handleReset() {
   query.orderNo = ''
   query.supplierId = undefined
@@ -246,6 +265,21 @@ async function handleDelete(row: InboundOrderVO) {
     )
     await deleteInboundApi(row.id)
     ElMessage.success('删除成功')
+    fetchData()
+  } catch {
+    // 取消
+  }
+}
+
+async function handleCancel(row: InboundOrderVO) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要作废入库单 ${row.orderNo} 吗？作废后不可恢复。`,
+      '作废确认',
+      { type: 'warning' }
+    )
+    await cancelInboundApi(row.id)
+    ElMessage.success('作废成功')
     fetchData()
   } catch {
     // 取消

@@ -11,6 +11,12 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(NullPointerException.class)
+    public Result<?> handleNullPointerException(NullPointerException e) {
+        log.error("空指针异常", e);
+        return Result.error(400, "系统内部错误，请联系管理员");
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public Result<?> handleRuntimeException(RuntimeException e) {
         log.error("业务异常: {}", e.getMessage(), e);

@@ -47,6 +47,12 @@ public class InboundOrderController {
         return Result.ok(null);
     }
 
+    @PostMapping("/inbound-order/cancel")
+    public Result<?> cancel(@RequestBody Map<String, Long> body) {
+        inboundOrderService.cancel(body.get("id"));
+        return Result.ok(null);
+    }
+
     @PostMapping("/inbound-order/batch-copy-parts")
     public Result<?> batchCopyParts(@RequestBody BatchOperationDTO dto) {
         inboundOrderService.batchCopyParts(dto);
