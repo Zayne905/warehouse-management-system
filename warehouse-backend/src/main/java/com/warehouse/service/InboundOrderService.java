@@ -30,6 +30,7 @@ public class InboundOrderService {
     private final PartService partService;
     private final WarehouseAreaService warehouseAreaService;
     private final SupplierPartService supplierPartService;
+    private final KanbanService kanbanService;
 
     public InboundOrderService(InboundOrderMapper inboundOrderMapper,
                                InboundOrderDetailMapper detailMapper,
@@ -37,7 +38,8 @@ public class InboundOrderService {
                                SupplierService supplierService,
                                PartService partService,
                                WarehouseAreaService warehouseAreaService,
-                               SupplierPartService supplierPartService) {
+                               SupplierPartService supplierPartService,
+                               KanbanService kanbanService) {
         this.inboundOrderMapper = inboundOrderMapper;
         this.detailMapper = detailMapper;
         this.orderNoGenerator = orderNoGenerator;
@@ -45,6 +47,7 @@ public class InboundOrderService {
         this.partService = partService;
         this.warehouseAreaService = warehouseAreaService;
         this.supplierPartService = supplierPartService;
+        this.kanbanService = kanbanService;
     }
 
     // ==================== 列表查询 ====================
@@ -77,6 +80,10 @@ public class InboundOrderService {
     }
 
     // ==================== 详情 ====================
+
+    public InboundOrder getOrderById(Long id) {
+        return inboundOrderMapper.selectById(id);
+    }
 
     public InboundOrderVO getDetail(Long id) {
         InboundOrder order = inboundOrderMapper.selectById(id);
@@ -137,6 +144,11 @@ public class InboundOrderService {
             saveDetails(order.getId(), dto.getDetails(), dto.getSupplierId());
         }
 
+        // 自动生成看板
+        if (dto.getDetails() != null && !dto.getDetails().isEmpty()) {
+            kanbanService.generateForOrder(order.getId(), dto.getDetails());
+        }
+
         return getDetail(order.getId());
     }
 
@@ -177,6 +189,11 @@ public class InboundOrderService {
 
         if (dto.getDetails() != null) {
             saveDetails(order.getId(), dto.getDetails(), dto.getSupplierId(), preservedQty, preservedBatch);
+        }
+
+        // 重新生成看板
+        if (dto.getDetails() != null && !dto.getDetails().isEmpty()) {
+            kanbanService.generateForOrder(order.getId(), dto.getDetails());
         }
 
         return getDetail(order.getId());
