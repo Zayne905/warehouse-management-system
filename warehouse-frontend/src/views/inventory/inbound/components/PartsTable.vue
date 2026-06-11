@@ -111,6 +111,7 @@ interface PartRow extends Part {
 
 const partRows = ref<PartRow[]>([])
 const syncingSelection = ref(false)
+const loadVersion = ref(0)
 const checkedCount = computed(() => partRows.value.filter(r => r.checked).length)
 const isEdit = computed(() => !!(props.initialDetails && props.initialDetails.length > 0))
 
@@ -122,9 +123,13 @@ onMounted(async () => {
 })
 
 async function loadParts(supplierId?: number) {
+  const version = ++loadVersion.value
   loading.value = true
   try {
     const res = await getPartListApi(supplierId || undefined)
+    // 版本检查：忽略过期响应
+    if (version !== loadVersion.value) return
+
     const parts = res.data || []
 
     if (props.initialDetails && props.initialDetails.length > 0) {
@@ -154,6 +159,8 @@ async function loadParts(supplierId?: number) {
 
     // 恢复勾选状态（Element Plus 表格需要 toggleRowSelection）
     await nextTick()
+    // 二次版本检查：nextTick 期间可能有新的 loadParts 调用
+    if (version !== loadVersion.value) return
     syncingSelection.value = true
     partRows.value.forEach(row => {
       if (tableRef.value) {
@@ -167,15 +174,21 @@ async function loadParts(supplierId?: number) {
   }
 }
 
-watch(() => props.supplierId, (sid) => {
-  if (sid) loadParts(sid)
-}, { immediate: true })
-
-watch(() => props.initialDetails, (val) => {
-  if (val && val.length > 0 && props.supplierId) {
-    loadParts(props.supplierId)
-  }
-}, { deep: true })
+// 合并监听：supplierId 和 initialDetails 任一变化都重新加载
+watch(
+  () => [props.supplierId, props.initialDetails] as const,
+  ([sid, details]) => {
+    if (!sid) return
+    // 编辑模式：等 initialDetails 加载完再一次性处理
+    if (details && details.length > 0) {
+      loadParts(sid)
+    } else if (!props.orderId) {
+      // 新建模式：没有已有明细，直接加载
+      loadParts(sid)
+    }
+  },
+  { immediate: true, deep: true }
+)
 
 function calcQty(row: PartRow): number {
   return (row.packageCapacity || 1) * (row.boxCount || 0)
