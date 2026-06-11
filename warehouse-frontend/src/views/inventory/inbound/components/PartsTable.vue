@@ -11,9 +11,17 @@
       <el-table-column type="selection" width="45" />
       <el-table-column prop="code" label="物料编码" min-width="120" />
       <el-table-column prop="name" label="物料名称" min-width="120" />
-      <el-table-column label="包装容量" width="90" align="center">
+      <el-table-column label="包装容量" width="110">
         <template #default="{ row }">
-          {{ row.packageCapacity || 1 }}
+          <el-input-number
+            v-model="row.packageCapacity"
+            :min="1"
+            :precision="0"
+            :disabled="!row.checked"
+            controls-position="right"
+            size="small"
+            style="width: 100%"
+          />
         </template>
       </el-table-column>
       <el-table-column prop="unit" label="单位" width="70" />
