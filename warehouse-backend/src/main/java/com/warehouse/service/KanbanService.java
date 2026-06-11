@@ -35,11 +35,7 @@ public class KanbanService {
      */
     private String generateKanbanNo(InboundOrder order, Part part, int boxSeq) {
         String dateStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
-        // 取订单号后4位作为流水号
-        String orderSeq = order.getOrderNo().length() >= 4
-                ? order.getOrderNo().substring(order.getOrderNo().length() - 4)
-                : order.getOrderNo();
-        return String.format("R-%s-%s-%sC-%d", dateStr, orderSeq, part.getCode(), boxSeq);
+        return String.format("R-%s-%s-%sC-%d", dateStr, order.getOrderNo(), part.getCode(), boxSeq);
     }
 
     /**
