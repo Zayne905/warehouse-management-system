@@ -110,6 +110,7 @@ interface PartRow extends Part {
 }
 
 const partRows = ref<PartRow[]>([])
+const syncingSelection = ref(false)
 const checkedCount = computed(() => partRows.value.filter(r => r.checked).length)
 const isEdit = computed(() => !!(props.initialDetails && props.initialDetails.length > 0))
 
@@ -153,11 +154,13 @@ async function loadParts(supplierId?: number) {
 
     // 恢复勾选状态（Element Plus 表格需要 toggleRowSelection）
     await nextTick()
+    syncingSelection.value = true
     partRows.value.forEach(row => {
       if (tableRef.value) {
         tableRef.value.toggleRowSelection(row, row.checked)
       }
     })
+    syncingSelection.value = false
   } catch { /* ignore */ }
   finally {
     loading.value = false
@@ -179,6 +182,7 @@ function calcQty(row: PartRow): number {
 }
 
 function onSelectionChange(rows: PartRow[]) {
+  if (syncingSelection.value) return
   // 同步 checked 状态
   const selectedIds = new Set(rows.map(r => r.id))
   partRows.value.forEach(r => {
