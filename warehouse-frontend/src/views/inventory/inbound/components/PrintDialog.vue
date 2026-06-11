@@ -54,7 +54,7 @@
       <!-- 零件看板 -->
       <el-tab-pane label="零件看板" name="part">
         <div v-if="kanbans.length === 0 && !loading" style="text-align: center; padding: 40px; color: #909399">
-          暂无零件看板数据，请先保存入库单后系统将自动生成
+          该入库单暂无零件明细，请先添加零件
         </div>
 
         <div class="kanban-grid" v-if="kanbans.length > 0">
@@ -156,9 +156,41 @@ watch(() => props.visible, async (val) => {
       })
     }
 
-    // 加载零件看板
+    // 加载零件看板（优先从DB，没有则从订单详情生成）
     try {
       kanbans.value = await listKanbansByOrder(props.order.id).then(r => r.data)
+    } catch { /* ignore */ }
+
+    try {
+      // DB没有看板数据时，从订单详情直接生成
+      if (kanbans.value.length === 0 && props.order.details) {
+        let genId = -1
+        kanbans.value = []
+        for (const d of props.order.details) {
+          const boxCount = d.boxCount || 0
+          const capacity = d.packageCapacity || 1
+          for (let seq = 0; seq < boxCount; seq++) {
+            const genNo = `${props.order.orderNo}-${d.partCode}C-${seq}`
+            kanbans.value.push({
+              id: genId--,
+              kanbanNo: genNo,
+              inboundOrderId: props.order.id,
+              inboundOrderNo: props.order.orderNo,
+              partId: d.partId,
+              partCode: d.partCode,
+              partName: d.partName,
+              supplierName: props.order.supplierName,
+              quantity: capacity,
+              boxSeq: seq,
+              warehouseAreaId: d.warehouseAreaId || 0,
+              warehouseAreaName: d.warehouseAreaName || '',
+              status: 0,
+              createTime: '',
+            })
+          }
+        }
+      }
+
       selectedIds.value = new Set(kanbans.value.map(k => k.id))
       await nextTick()
       for (const k of kanbans.value) {
