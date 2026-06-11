@@ -18,6 +18,11 @@
             {{ row.packageCapacity || 1 }}
           </template>
         </el-table-column>
+        <el-table-column label="供应商" width="160">
+          <template #default="{ row }">
+            {{ row.supplierName || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column label="默认库区" width="140">
           <template #default="{ row }">
             {{ row.warehouseAreaName || '-' }}
@@ -46,6 +51,11 @@
         <el-form-item label="单位">
           <el-input v-model="form.unit" placeholder="个/箱/kg" />
         </el-form-item>
+        <el-form-item label="供应商" required>
+          <el-select v-model="form.supplierId" placeholder="选择供应商" style="width: 100%">
+            <el-option v-for="s in supplierList" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="包装容量">
           <el-input-number v-model="form.packageCapacity" :min="1" :precision="0" style="width: 100%" />
         </el-form-item>
@@ -69,11 +79,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getPartListApi, savePartApi, deletePartApi } from '@/api/part'
 import { getAreaListApi } from '@/api/warehouseArea'
-import type { Part, WarehouseArea } from '@/types/inbound'
+import { getSupplierListApi } from '@/api/supplier'
+import type { Part, WarehouseArea, Supplier } from '@/types/inbound'
 
 const loading = ref(false)
 const tableData = ref<Part[]>([])
 const areaList = ref<WarehouseArea[]>([])
+const supplierList = ref<Supplier[]>([])
 const dialogVisible = ref(false)
 const editingId = ref<number>()
 
@@ -85,6 +97,7 @@ const form = reactive<Part>({
   unit: '',
   packageCapacity: 1,
   warehouseAreaId: undefined,
+  supplierId: undefined,
 })
 
 async function fetchData() {
@@ -102,11 +115,18 @@ async function fetchAreas() {
   } catch { /* ignore */ }
 }
 
-onMounted(() => { fetchData(); fetchAreas() })
+async function fetchSuppliers() {
+  try {
+    const res = await getSupplierListApi()
+    supplierList.value = res.data
+  } catch { /* ignore */ }
+}
+
+onMounted(() => { fetchData(); fetchAreas(); fetchSuppliers() })
 
 function handleAdd() {
   editingId.value = undefined
-  Object.assign(form, { id: 0, code: '', name: '', spec: '', unit: '', packageCapacity: 1, warehouseAreaId: undefined })
+  Object.assign(form, { id: 0, code: '', name: '', spec: '', unit: '', packageCapacity: 1, warehouseAreaId: undefined, supplierId: undefined })
   dialogVisible.value = true
 }
 

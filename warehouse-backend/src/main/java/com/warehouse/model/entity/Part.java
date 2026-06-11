@@ -17,6 +17,10 @@ public class Part {
     private Long warehouseAreaId;
     @TableField(exist = false)
     private String warehouseAreaName;
+    @TableField(exist = false)
+    private Long supplierId;
+    @TableField(exist = false)
+    private String supplierName;
     private Boolean enabled;
     private LocalDateTime createTime;
 }

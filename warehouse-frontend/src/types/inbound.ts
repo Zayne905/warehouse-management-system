@@ -110,6 +110,8 @@ export interface Part {
   packageCapacity?: number
   warehouseAreaId?: number
   warehouseAreaName?: string
+  supplierId?: number
+  supplierName?: string
 }
 
 // 库区
