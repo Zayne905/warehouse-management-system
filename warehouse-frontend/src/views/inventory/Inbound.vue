@@ -88,8 +88,17 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="170" />
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="操作" width="310" fixed="right">
           <template #default="{ row }">
+            <el-button
+              size="small"
+              type="primary"
+              link
+              @click="handlePrint(row)"
+            >
+              <el-icon><Printer /></el-icon>
+              打印
+            </el-button>
             <el-button
               size="small"
               type="primary"
@@ -143,6 +152,13 @@
         />
       </div>
     </el-card>
+
+    <!-- 打印对话框 -->
+    <PrintDialog
+      v-if="printOrderData"
+      v-model:visible="showPrintDialog"
+      :order="printOrderData"
+    />
   </div>
 </template>
 
@@ -150,8 +166,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import { listInboundApi, deleteInboundApi, cancelInboundApi } from '@/api/inbound'
+import { Search, Refresh, Plus, Printer } from '@element-plus/icons-vue'
+import { listInboundApi, deleteInboundApi, cancelInboundApi, getInboundDetailApi } from '@/api/inbound'
 import { getSupplierListApi } from '@/api/supplier'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -159,6 +175,7 @@ import {
   InboundStatusTagType,
 } from '@/types/inbound'
 import type { InboundOrderVO, Supplier } from '@/types/inbound'
+import PrintDialog from './inbound/components/PrintDialog.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -166,6 +183,8 @@ const authStore = useAuthStore()
 const loading = ref(false)
 const tableData = ref<InboundOrderVO[]>([])
 const total = ref(0)
+const showPrintDialog = ref(false)
+const printOrderData = ref<InboundOrderVO | null>(null)
 const supplierList = ref<Supplier[]>([])
 
 const query = reactive({
@@ -246,6 +265,14 @@ function handleReset() {
 
 function handleCreate() {
   router.push('/inventory/inbound/create')
+}
+
+async function handlePrint(row: InboundOrderVO) {
+  try {
+    const res = await getInboundDetailApi(row.id)
+    printOrderData.value = res.data
+    showPrintDialog.value = true
+  } catch { /* ignore */ }
 }
 
 function handleDetail(row: InboundOrderVO) {
