@@ -384,10 +384,19 @@ public class InboundOrderService {
             detail.setPartCode(part.getCode());
             detail.setPartName(part.getName());
             detail.setUnit(dto.getUnit() != null ? dto.getUnit() : part.getUnit());
-            detail.setPlannedQty(dto.getPlannedQty() != null ? dto.getPlannedQty() : BigDecimal.ZERO);
+
+            // 计算 plannedQty = 包装容量 × 箱数
+            int capacity = part.getPackageCapacity() != null ? part.getPackageCapacity() : 1;
+            int boxCount = dto.getBoxCount() != null ? dto.getBoxCount() : 0;
+            BigDecimal plannedQty = BigDecimal.valueOf(capacity).multiply(BigDecimal.valueOf(boxCount));
+            detail.setPlannedQty(plannedQty);
+            detail.setBoxCount(boxCount);
+
             // 保留旧的实际入库数量和批次号
             if (preservedQty != null && preservedQty.containsKey(dto.getPartId())) {
                 detail.setActualQty(preservedQty.get(dto.getPartId()));
+            } else if (dto.getActualQty() != null && dto.getActualQty().compareTo(BigDecimal.ZERO) > 0) {
+                detail.setActualQty(dto.getActualQty());
             } else {
                 detail.setActualQty(BigDecimal.ZERO);
             }
@@ -396,7 +405,14 @@ public class InboundOrderService {
             } else {
                 detail.setBatchNo(dto.getBatchNo());
             }
-            detail.setWarehouseAreaId(dto.getWarehouseAreaId());
+            // 默认库区：优先用 DTO 传入的，没有则用零件的默认库区
+            if (dto.getWarehouseAreaId() != null) {
+                detail.setWarehouseAreaId(dto.getWarehouseAreaId());
+            } else if (part.getWarehouseAreaId() != null) {
+                detail.setWarehouseAreaId(part.getWarehouseAreaId());
+            } else {
+                detail.setWarehouseAreaId(null);
+            }
             detail.setLineNo(lineNo++);
             detailMapper.insert(detail);
         }
@@ -436,6 +452,14 @@ public class InboundOrderService {
             vo.setWarehouseAreaName(area != null ? area.getName() : null);
         }
         vo.setBatchNo(detail.getBatchNo());
+        vo.setBoxCount(detail.getBoxCount());
+        // 填充包装容量（从 Part 获取）
+        if (detail.getPartId() != null) {
+            Part part = partService.getById(detail.getPartId());
+            if (part != null) {
+                vo.setPackageCapacity(part.getPackageCapacity() != null ? part.getPackageCapacity() : 1);
+            }
+        }
         vo.setLineNo(detail.getLineNo());
         return vo;
     }

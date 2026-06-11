@@ -48,6 +48,8 @@ export interface InboundDetailVO {
   warehouseAreaName: string
   batchNo: string
   lineNo: number
+  boxCount?: number
+  packageCapacity?: number
 }
 
 // 入库单查询参数
@@ -77,6 +79,8 @@ export interface InboundDetailDTO {
   warehouseAreaId?: number
   batchNo?: string
   lineNo: number
+  boxCount?: number
+  actualQty?: number
 }
 
 // 分页结果
@@ -103,6 +107,9 @@ export interface Part {
   name: string
   unit: string
   spec: string
+  packageCapacity?: number
+  warehouseAreaId?: number
+  warehouseAreaName?: string
 }
 
 // 库区

@@ -10,5 +10,7 @@ public class InboundDetailDTO {
     private String unit;
     private Long warehouseAreaId;
     private String batchNo;
+    private Integer boxCount;
+    private BigDecimal actualQty;
     private Integer lineNo;
 }

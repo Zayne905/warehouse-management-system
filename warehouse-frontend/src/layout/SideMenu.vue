@@ -52,6 +52,10 @@
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
+        <el-menu-item index="/system/part">
+          <el-icon><Coin /></el-icon>
+          <span>零件管理</span>
+        </el-menu-item>
       </el-sub-menu>
     </el-menu>
   </div>
@@ -70,6 +74,7 @@ import {
   Upload,
   Setting,
   User,
+  Coin,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()

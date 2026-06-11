@@ -21,6 +21,7 @@ public class InboundOrderDetail {
     private BigDecimal actualQty;
     private Long warehouseAreaId;
     private String batchNo;
+    private Integer boxCount;
     private Integer lineNo;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

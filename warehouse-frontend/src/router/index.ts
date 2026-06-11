@@ -69,6 +69,12 @@ const router = createRouter({
           component: () => import('@/views/system/User.vue'),
           meta: { title: '用户管理', icon: 'User' },
         },
+        {
+          path: 'system/part',
+          name: 'SystemPart',
+          component: () => import('@/views/system/PartList.vue'),
+          meta: { title: '零件管理', icon: 'Coin' },
+        },
       ],
     },
   ],

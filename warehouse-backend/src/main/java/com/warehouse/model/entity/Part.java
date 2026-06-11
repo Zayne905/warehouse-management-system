@@ -1,5 +1,6 @@
 package com.warehouse.model.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import java.time.LocalDateTime;
@@ -12,6 +13,10 @@ public class Part {
     private String name;
     private String unit;
     private String spec;
+    private Integer packageCapacity;
+    private Long warehouseAreaId;
+    @TableField(exist = false)
+    private String warehouseAreaName;
     private Boolean enabled;
     private LocalDateTime createTime;
 }

@@ -138,6 +138,8 @@ onMounted(async () => {
           warehouseAreaId: d.warehouseAreaId,
           batchNo: d.batchNo,
           lineNo: d.lineNo,
+          boxCount: d.boxCount,
+          actualQty: d.actualQty,
         }))
       }
     } catch { /* ignore */ }

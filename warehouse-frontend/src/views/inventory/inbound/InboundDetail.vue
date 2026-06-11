@@ -59,6 +59,12 @@
         <el-table-column prop="partCode" label="物料编码" min-width="120" />
         <el-table-column prop="partName" label="物料名称" min-width="120" />
         <el-table-column prop="unit" label="单位" width="70" />
+        <el-table-column label="包装容量" width="90" align="center">
+          <template #default="{ row }">
+            {{ row.packageCapacity || 1 }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="boxCount" label="箱数" width="70" align="center" />
         <el-table-column prop="plannedQty" label="计划数量" width="100" />
         <el-table-column prop="actualQty" label="实入数量" width="100" />
         <el-table-column prop="warehouseAreaName" label="库区" width="120" />
