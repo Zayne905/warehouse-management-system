@@ -38,6 +38,8 @@
                   <th>物料编码</th>
                   <th>物料名称</th>
                   <th>单位</th>
+                  <th>包装容量</th>
+                  <th>箱数</th>
                   <th>计划数量</th>
                   <th>实入数量</th>
                   <th>库区</th>
@@ -49,6 +51,8 @@
                   <td>{{ d.partCode }}</td>
                   <td>{{ d.partName }}</td>
                   <td>{{ d.unit }}</td>
+                  <td>{{ d.packageCapacity || 1 }}</td>
+                  <td>{{ d.boxCount || 0 }}</td>
                   <td>{{ d.plannedQty }}</td>
                   <td>{{ d.actualQty }}</td>
                   <td>{{ d.warehouseAreaName || '-' }}</td>
@@ -126,7 +130,7 @@ watch(() => props.visible, async (val) => {
 function printOrder() {
   const el = document.getElementById('print-content')
   if (!el) return
-  const win = window.open('', '_blank', 'width=800,height=600')
+  const win = window.open('', '_blank', 'width=1050,height=650')
   if (!win) return
   win.document.write(`
     <html>
@@ -137,8 +141,8 @@ function printOrder() {
           .info-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
           .info-table td { padding: 8px; border: 1px solid #333; }
           .info-table .label { background: #f0f0f0; font-weight: bold; width: 15%; }
-          .detail-table { width: 100%; border-collapse: collapse; }
-          .detail-table th, .detail-table td { padding: 8px; border: 1px solid #333; text-align: center; }
+          .detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          .detail-table th, .detail-table td { padding: 4px 6px; border: 1px solid #333; text-align: center; }
           .detail-table thead { background: #f0f0f0; }
           @media print { button { display: none; } }
         </style>
