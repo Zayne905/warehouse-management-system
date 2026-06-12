@@ -35,8 +35,11 @@
             <el-input-number v-model="row.plannedQty" :min="0" :max="row._stock||99999" controls-position="right" size="small" style="width:100%" />
           </template>
         </el-table-column>
-        <el-table-column label="箱数" width="80" align="center">
-          <template #default="{ row }">{{ Math.ceil((row.plannedQty||0) / (row.packageCapacity||1)) }}</template>
+        <el-table-column label="箱数" width="100">
+          <template #default="{ row }">
+            <el-input-number v-model="row.boxCount" :min="0" size="small" controls-position="right" style="width:100%"
+              @change="(v: number) => row.plannedQty = v * (row.packageCapacity||1)" />
+          </template>
         </el-table-column>
         <el-table-column label="实出" width="70" align="center">
           <template #default="{ row }">{{ row.actualQty || 0 }}</template>
@@ -129,7 +132,7 @@ function addSelectedParts() {
     if (details.value.some(d => d.partId === p.id)) continue
     details.value.push({
       partId: p.id, partCode: p.code, partName: p.name, unit: p.unit,
-      plannedQty: 0, actualQty: 0, packageCapacity: p.packageCapacity || 1,
+      plannedQty: 0, actualQty: 0, boxCount: 0, packageCapacity: p.packageCapacity || 1,
       _stock: p._stock || 0
     })
   }
@@ -143,7 +146,7 @@ async function doSave() {
       id: form.id, remark: form.remark,
       details: details.value.map((d, i) => ({
         partId: d.partId, plannedQty: d.plannedQty,
-        boxCount: Math.ceil((d.plannedQty||0) / (d.packageCapacity||1)),
+        boxCount: d.boxCount || 0,
         unit: d.unit, warehouseAreaId: d.warehouseAreaId, lineNo: i + 1
       }))
     })

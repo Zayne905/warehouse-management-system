@@ -5,7 +5,7 @@
         <div class="card-header">
           <span>出库单详情</span>
           <div>
-            <el-button size="small" v-if="order.status !== 2" type="success" @click="showScanDialog = true"><el-icon><Scan /></el-icon>扫码出库</el-button>
+            <el-button size="small" v-if="order.status !== 2" type="success" @click="showScanDialog = true"><el-icon><Search /></el-icon>扫码出库</el-button>
             <el-button size="small" @click="router.back()"><el-icon><Back /></el-icon>返回</el-button>
           </div>
         </div>
@@ -66,7 +66,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Back, Scan } from '@element-plus/icons-vue'
+import { Back, Search } from '@element-plus/icons-vue'
 import { getOutboundDetailApi, scanOutboundApi } from '@/api/outbound'
 
 const route = useRoute(); const router = useRouter()
