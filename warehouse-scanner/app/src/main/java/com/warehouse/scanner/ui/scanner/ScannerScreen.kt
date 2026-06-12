@@ -195,3 +195,5 @@ fun ScannerScreen(
         )
     }
 }
+
+private fun fmt(v: Double) = if (v == v.toLong().toDouble()) v.toLong().toString() else v.toString()
