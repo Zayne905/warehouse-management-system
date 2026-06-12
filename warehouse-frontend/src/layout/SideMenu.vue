@@ -37,6 +37,10 @@
           <el-icon><Download /></el-icon>
           <span>入库管理</span>
         </el-menu-item>
+        <el-menu-item index="/inventory/stock">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>库存总览</span>
+        </el-menu-item>
         <el-menu-item index="/inventory/outbound">
           <el-icon><Upload /></el-icon>
           <span>出库管理</span>
@@ -72,6 +76,7 @@ import {
   Folder,
   Download,
   Upload,
+  DataAnalysis,
   Setting,
   User,
   Coin,

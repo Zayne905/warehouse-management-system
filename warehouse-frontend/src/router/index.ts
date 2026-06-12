@@ -40,6 +40,12 @@ const router = createRouter({
           meta: { title: '入库管理', icon: 'Download' },
         },
         {
+          path: 'inventory/stock',
+          name: 'InventoryStock',
+          component: () => import('@/views/inventory/Stock.vue'),
+          meta: { title: '库存总览', icon: 'DataAnalysis' },
+        },
+        {
           path: 'inventory/inbound/create',
           name: 'InboundCreate',
           component: () => import('@/views/inventory/inbound/InboundForm.vue'),
