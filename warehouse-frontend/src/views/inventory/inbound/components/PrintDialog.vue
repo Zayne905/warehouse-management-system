@@ -170,7 +170,8 @@ watch(() => props.visible, async (val) => {
           const boxCount = d.boxCount || 0
           const capacity = d.packageCapacity || 1
           for (let seq = 0; seq < boxCount; seq++) {
-            const genNo = `${props.order.orderNo}-${d.partCode}C-${seq}`
+            const dateStr = new Date().toISOString().slice(0, 10)
+            const genNo = `R-${dateStr}-${props.order.orderNo}-${d.partCode}C-${seq}`
             kanbans.value.push({
               id: genId--,
               kanbanNo: genNo,

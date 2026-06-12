@@ -257,13 +257,18 @@ public class ScanService {
         record.setPartCode(dto.getPartCode());
         record.setPartName(dto.getPartName());
         record.setKanbanNo(dto.getKanbanNo());
-        record.setScanQty(BigDecimal.valueOf(dto.getQuantity() != null ? dto.getQuantity() : 0));
+        int scanQty = dto.getQuantity() != null ? dto.getQuantity() : 0;
+        if (scanQty <= 0) {
+            throw new RuntimeException("扫描数量必须大于0");
+        }
+        record.setScanQty(BigDecimal.valueOf(scanQty));
         record.setScanTime(java.time.LocalDateTime.now());
         record.setOperatorId(dto.getOperatorId());
         scanRecordMapper.insert(record);
 
-        // 5. 更新明细实入数量
-        detail.setActualQty(detail.getActualQty().add(record.getScanQty()));
+        // 5. 更新明细实入数量（防御性null处理）
+        BigDecimal currentQty = detail.getActualQty() != null ? detail.getActualQty() : BigDecimal.ZERO;
+        detail.setActualQty(currentQty.add(record.getScanQty()));
         detailMapper.updateById(detail);
 
         // 6. 更新看板状态
@@ -280,11 +285,14 @@ public class ScanService {
         // 8. 返回该零件的收货进度
         int boxTotal = 0;
         if (kanban != null) {
-            // 统计该零件总共有多少箱
             boxTotal = kanbanMapper.selectCount(
                     new QueryWrapper<Kanban>()
                             .eq("inbound_order_id", order.getId())
                             .eq("part_id", detail.getPartId())).intValue();
+        }
+        // fallback: 数据库无看板记录时从明细的boxCount估算总箱数
+        if (boxTotal == 0 && detail.getBoxCount() != null) {
+            boxTotal = detail.getBoxCount();
         }
         int boxScanned = (int) scanRecordMapper.selectCount(
                 new QueryWrapper<ScanRecord>()
