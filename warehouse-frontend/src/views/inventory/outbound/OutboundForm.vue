@@ -65,6 +65,7 @@
           <template #default="{ row }">{{ row._stock }}</template>
         </el-table-column>
       </el-table>
+      <div v-if="partList.length === 0" style="text-align:center;padding:20px;color:#909399">暂无有库存的零件</div>
       <template #footer>
         <el-button @click="showPartSelector = false">取消</el-button>
         <el-button type="primary" @click="addSelectedParts" :disabled="selParts.length===0">添加选中 ({{ selParts.length }})</el-button>
@@ -111,13 +112,15 @@ async function openPartSelector() {
   showPartSelector.value = true
   try {
     const res = await getPartListApi()
-    partList.value = (res.data || []).map((p: any) => ({ ...p, _stock: 0 }))
-    for (const p of partList.value) {
+    const all = (res.data || []).map((p: any) => ({ ...p, _stock: 0 }))
+    for (const p of all) {
       try {
         const sr = await getAvailableStockApi(p.id)
         p._stock = sr.data || 0
       } catch { /* */ }
     }
+    // 只显示有库存的零件
+    partList.value = all.filter((p: any) => p._stock > 0)
   } catch { /* */ }
 }
 
