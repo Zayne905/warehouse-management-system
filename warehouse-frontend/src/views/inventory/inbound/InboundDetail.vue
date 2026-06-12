@@ -12,7 +12,7 @@
               @click="openReceiveCart"
             >
               <el-icon><ShoppingCart /></el-icon>
-              收货
+              手动入库
             </el-button>
             <el-button size="small" @click="showPrintDialog = true">
               <el-icon><Printer /></el-icon>
@@ -193,8 +193,7 @@ const order = ref<InboundOrderVO>({
 })
 
 const canEdit = computed(() => {
-  if (order.value.status === 3) return false
-  if (order.value.status === 2) return authStore.role === 'admin'
+  if (order.value.status === 3 || order.value.status === 2) return false
   return true
 })
 

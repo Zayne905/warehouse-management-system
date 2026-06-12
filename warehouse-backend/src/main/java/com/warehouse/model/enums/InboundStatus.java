@@ -32,10 +32,7 @@ public enum InboundStatus {
     }
 
     public static boolean canEdit(int status, boolean isAdmin) {
-        if (status == CANCELLED.code) {
-            return false;
-        }
-        if (status == COMPLETED.code && !isAdmin) {
+        if (status == CANCELLED.code || status == COMPLETED.code) {
             return false;
         }
         return true;
