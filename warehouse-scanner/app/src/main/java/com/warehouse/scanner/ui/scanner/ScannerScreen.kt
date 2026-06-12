@@ -76,31 +76,6 @@ fun ScannerScreen(
                 }
             }
 
-            // 手动输入兜底
-            item {
-                OutlinedTextField(
-                    value = state.orderNo,
-                    onValueChange = viewModel::onOrderNoChange,
-                    label = { Text("或手动输入入库单号") },
-                    placeholder = { Text("R20260611001") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        if (state.orderNo.isNotBlank() && !state.loading) {
-                            IconButton(onClick = viewModel::loadOrder) {
-                                Icon(Icons.Default.Search, "查询")
-                            }
-                        }
-                    }
-                )
-                if (state.orderInfo.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(state.orderInfo,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-
             // 状态消息
             if (state.message.isNotEmpty()) {
                 item {
