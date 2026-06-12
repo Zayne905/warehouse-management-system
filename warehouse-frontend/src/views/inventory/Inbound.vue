@@ -270,8 +270,40 @@ function handleCreate() {
 async function handlePrint(row: InboundOrderVO) {
   try {
     const res = await getInboundDetailApi(row.id)
-    printOrderData.value = res.data
-    showPrintDialog.value = true
+    const order = res.data
+    const details = order.details || []
+    const totalQty = details.reduce((s: number, d: any) => s + (d.plannedQty || 0), 0)
+    const rows = details.map((d: any) =>
+      `<tr><td>${d.partCode}</td><td>${d.partName}</td><td>${d.unit}</td>
+       <td>${d.packageCapacity||1}</td><td>${d.boxCount||0}</td><td>${d.plannedQty}</td><td>${d.warehouseAreaName||'-'}</td></tr>`
+    ).join('')
+
+    const win = window.open('', '_blank', 'width=900,height=650')
+    if (!win) return
+    win.document.write(`<html><head><title>入库单-${order.orderNo}</title>
+      <style>
+        body{font-family:'Microsoft YaHei',sans-serif;padding:20px}
+        h2{text-align:center;margin-bottom:12px}
+        .info{width:100%;border-collapse:collapse;margin-bottom:16px}
+        .info td{padding:8px;border:1px solid #333}
+        .info .lbl{background:#f0f0f0;font-weight:bold;width:14%}
+        .dt{width:100%;border-collapse:collapse;font-size:12px}
+        .dt th,.dt td{padding:4px 6px;border:1px solid #333;text-align:center}
+        .dt thead{background:#f0f0f0}
+        @media print{button{display:none}}
+      </style></head><body>
+      <h2>入库单</h2>
+      <table class="info">
+        <tr><td class="lbl">入库单号</td><td>${order.orderNo}</td><td class="lbl">供应商</td><td>${order.supplierName}</td></tr>
+        <tr><td class="lbl">创建时间</td><td>${order.createTime}</td><td class="lbl">状态</td><td>${order.statusText}</td></tr>
+        <tr><td class="lbl">物料总数</td><td style="font-size:18px;font-weight:bold;color:#409eff">${totalQty}</td><td class="lbl">零件种类</td><td>${details.length}</td></tr>
+      </table>
+      <h4 style="margin:12px 0 6px">物料明细</h4>
+      <table class="dt"><thead><tr><th>物料编码</th><th>物料名称</th><th>单位</th><th>包装容量</th><th>箱数</th><th>计划数量</th><th>库区</th></tr></thead><tbody>${rows}</tbody></table>
+      <p style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 40px;font-size:16px">打印</button></p>
+    </body></html>`)
+    win.document.close()
+    win.focus()
   } catch { /* ignore */ }
 }
 
