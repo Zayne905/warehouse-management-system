@@ -149,6 +149,8 @@ class ScannerViewModel : ViewModel() {
                         progress = ScanProgress(
                             partCode = qr.partCode,
                             partName = qr.partName,
+                            boxScanned = 0,
+                            boxTotal = 0,
                             quantity = qr.quantity,
                             unit = "",
                             boxSeq = qr.boxSeq,
