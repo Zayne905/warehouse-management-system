@@ -212,7 +212,7 @@ watch(() => props.visible, async (val) => {
     } catch { /* ignore */ }
     finally { loading.value = false }
   }
-})
+}, { immediate: true })
 
 function toggleSelect(id: number) {
   const next = new Set(selectedIds.value)
