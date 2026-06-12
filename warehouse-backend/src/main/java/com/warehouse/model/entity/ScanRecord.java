@@ -18,6 +18,7 @@ public class ScanRecord {
     private String partCode;
     private String partName;
     private String batchNo;
+    private String kanbanNo;
     private BigDecimal scanQty;
     private LocalDateTime scanTime;
     private Long operatorId;

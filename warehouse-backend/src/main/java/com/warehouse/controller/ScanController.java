@@ -1,5 +1,6 @@
 package com.warehouse.controller;
 
+import com.warehouse.model.dto.KanbanScanDTO;
 import com.warehouse.model.dto.Result;
 import com.warehouse.model.dto.ScanDuplicateCheckDTO;
 import com.warehouse.model.dto.ScanSubmitDTO;
@@ -46,5 +47,13 @@ public class ScanController {
         return Result.ok(scanService.getFeedback(
                 body.get("orderNo"),
                 body.get("partCode")));
+    }
+
+    /**
+     * 看板扫码入库 — 扫看板QR码自动收货一箱
+     */
+    @PostMapping("/scan/kanban")
+    public Result<Map<String, Object>> scanKanban(@RequestBody KanbanScanDTO dto) {
+        return Result.ok(scanService.scanKanban(dto));
     }
 }

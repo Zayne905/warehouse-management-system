@@ -2,67 +2,141 @@ package com.warehouse.scanner.ui.scanner
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import com.warehouse.scanner.model.*
 import com.warehouse.scanner.network.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-data class PartItem(
-    val detailId: Long,
-    val partId: Long,
+// 看板QR码JSON解析
+data class KanbanQrData(
+    val kanbanNo: String = "",
+    val partCode: String = "",
+    val partName: String = "",
+    val supplierName: String = "",
+    val quantity: Int = 0,
+    val warehouseArea: String = "",
+    val inboundOrderNo: String = "",
+    val boxSeq: Int = 0
+)
+
+data class ScanProgress(
     val partCode: String,
     val partName: String,
-    val unit: String,
-    val plannedQty: Double,
-    val alreadyReceived: Double,
-    val receiveQty: String = ""   // 本次要入库的数量
+    val boxScanned: Int,
+    val boxTotal: Int
 )
 
 data class ScannerState(
     val orderNo: String = "",
-    val orderId: Long = 0,
-    val orderInfo: String = "",      // "供应商: xxx | 订单号: xxx | 状态: xxx"
-    val parts: List<PartItem> = emptyList(),
+    val orderInfo: String = "",
     val loading: Boolean = false,
     val submitting: Boolean = false,
-    val message: String = "",        // 提示信息
+    val message: String = "",
     val error: Boolean = false,
-    val completed: Boolean = false,  // 全部提交完成
-    val showCamera: Boolean = false
+    // 看板模式 — 最近一次扫描的零件进度
+    val progress: ScanProgress? = null,
+    val lastScannedKanban: String = "",
+    val showCamera: Boolean = false,
+    val needConfirm: Boolean = false  // 需确认后才能扫下一箱
 )
 
 class ScannerViewModel : ViewModel() {
 
     private val _state = MutableStateFlow(ScannerState())
     val state: StateFlow<ScannerState> = _state
+    private val gson = Gson()
 
     fun onOrderNoChange(v: String) {
+        _state.value = _state.value.copy(orderNo = v, message = "", error = false)
+    }
+
+    fun showCamera() { _state.value = _state.value.copy(showCamera = true) }
+    fun hideCamera() { _state.value = _state.value.copy(showCamera = false) }
+
+    /** 确认后继续扫下一箱 */
+    fun confirmContinue() {
         _state.value = _state.value.copy(
-            orderNo = v, message = "", error = false
+            needConfirm = false, message = "", progress = null, lastScannedKanban = ""
         )
     }
 
-    fun showCamera() {
-        _state.value = _state.value.copy(showCamera = true)
-    }
-    fun hideCamera() {
-        _state.value = _state.value.copy(showCamera = false)
-    }
-
     /**
-     * 扫码回调：QR 看板上是入库单号
+     * 扫码回调 — 智能识别：看板JSON自动入库，普通文本按单号查询
      */
     fun onQrScanned(text: String) {
         val trimmed = text.trim()
-        _state.value = _state.value.copy(orderNo = trimmed, showCamera = false)
-        // 扫码后自动加载
+        _state.value = _state.value.copy(showCamera = false)
+
+        // 尝试解析为看板JSON
+        try {
+            val qr = gson.fromJson(trimmed, KanbanQrData::class.java)
+            if (qr.kanbanNo.isNotBlank() && qr.partCode.isNotBlank()) {
+                // 看板模式：自动入库
+                scanKanban(qr)
+                return
+            }
+        } catch (_: Exception) { /* 不是JSON，作为单号处理 */ }
+
+        // 兼容旧版：纯文本单号走原流程
+        _state.value = _state.value.copy(orderNo = trimmed)
         loadOrder(trimmed)
     }
 
     /**
-     * 手动搜索/加载入库单
+     * 看板扫码入库
      */
+    private fun scanKanban(qr: KanbanQrData) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(submitting = true, message = "正在入库 ${qr.partName} ...", error = false)
+            try {
+                val res = RetrofitClient.api.scanKanban(
+                    KanbanScanRequest(
+                        kanbanNo = qr.kanbanNo,
+                        partCode = qr.partCode,
+                        partName = qr.partName,
+                        supplierName = qr.supplierName,
+                        quantity = qr.quantity,
+                        warehouseArea = qr.warehouseArea,
+                        inboundOrderNo = qr.inboundOrderNo,
+                        boxSeq = qr.boxSeq,
+                        operatorId = 1 // TODO: 使用当前登录用户ID
+                    )
+                )
+                if (res.code == 200 && res.data != null) {
+                    val r = res.data
+                    _state.value = _state.value.copy(
+                        submitting = false,
+                        needConfirm = true,
+                        lastScannedKanban = qr.kanbanNo,
+                        message = "✅ ${r.partName} C-${r.boxSeq}箱 已入库 (${r.quantity}个)",
+                        progress = ScanProgress(
+                            partCode = r.partCode,
+                            partName = r.partName,
+                            boxScanned = r.boxScanned,
+                            boxTotal = r.boxTotal
+                        ),
+                        error = false
+                    )
+                } else {
+                    _state.value = _state.value.copy(
+                        submitting = false, error = true,
+                        message = res.message
+                    )
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    submitting = false, error = true,
+                    message = "网络错误: ${e.localizedMessage}"
+                )
+            }
+        }
+    }
+
+    // ==================== 以下为旧版兼容逻辑 ====================
+
     fun loadOrder() {
         val no = _state.value.orderNo.trim()
         if (no.isEmpty()) return
@@ -73,7 +147,6 @@ class ScannerViewModel : ViewModel() {
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, message = "", error = false)
             try {
-                // 用新接口按单号查详情
                 val res = RetrofitClient.api.getInboundOrderDetailByNo(
                     mapOf("orderNo" to orderNo)
                 )
@@ -84,95 +157,21 @@ class ScannerViewModel : ViewModel() {
                     )
                     return@launch
                 }
-
                 val order = res.data
-                if (order.status == 2) {
+                if (order.status == 2 || order.status == 3) {
+                    val msg = if (order.status == 2) "该入库单已完成入库" else "该入库单已作废"
                     _state.value = _state.value.copy(loading = false, error = true,
-                        message = "该入库单已完成入库",
-                        orderInfo = "供应商: ${order.supplierName} | 状态: ${order.statusText}")
+                        message = msg, orderInfo = "供应商: ${order.supplierName} | 状态: ${order.statusText}")
                     return@launch
                 }
-                if (order.status == 3) {
-                    _state.value = _state.value.copy(loading = false, error = true,
-                        message = "该入库单已作废",
-                        orderInfo = "供应商: ${order.supplierName} | 状态: ${order.statusText}")
-                    return@launch
-                }
-
-                // 解析零件明细
-                val parts = order.details?.map { det ->
-                    PartItem(
-                        detailId = det.id,
-                        partId = det.partId,
-                        partCode = det.partCode,
-                        partName = det.partName,
-                        unit = det.unit ?: "",
-                        plannedQty = det.plannedQty,
-                        alreadyReceived = det.actualQty,
-                        receiveQty = ""
-                    )
-                } ?: emptyList()
-
                 _state.value = _state.value.copy(
                     loading = false,
-                    orderId = order.id,
-                    orderInfo = "供应商: ${order.supplierName} | 状态: ${order.statusText} | 单号: $orderNo | 订单号: ${order.orderNumber ?: "-"}",
-                    parts = parts,
-                    message = "✅ 已加载入库单，共 ${parts.size} 个零件"
+                    orderInfo = "供应商: ${order.supplierName} | 状态: ${order.statusText} | 单号: $orderNo",
+                    message = "✅ 已加载入库单（共 ${order.details?.size ?: 0} 个零件），请扫描看板标签"
                 )
-
             } catch (e: Exception) {
                 _state.value = _state.value.copy(loading = false, error = true,
                     message = "网络错误: ${e.localizedMessage}")
-            }
-        }
-    }
-
-    fun onReceiveQtyChange(partCode: String, qty: String) {
-        val parts = _state.value.parts.map {
-            if (it.partCode == partCode) it.copy(receiveQty = qty) else it
-        }
-        _state.value = _state.value.copy(parts = parts)
-    }
-
-    /**
-     * 提交确认：将所有勾选/输入的零件扫码入库
-     */
-    fun submitAll() {
-        viewModelScope.launch {
-            _state.value = _state.value.copy(submitting = true, message = "")
-            val orderId = _state.value.orderId
-            val orderNo = _state.value.orderNo
-
-            var successCount = 0
-            var failCount = 0
-
-            for (part in _state.value.parts) {
-                val qty = part.receiveQty.toDoubleOrNull() ?: continue
-                if (qty <= 0) continue
-
-                try {
-                    val res = RetrofitClient.api.submitScan(
-                        ScanSubmitRequest(
-                            inboundOrderId = orderId,
-                            inboundOrderNo = orderNo,
-                            partCode = part.partCode,
-                            batchNo = "",
-                            scanQty = qty,
-                            operatorId = 1
-                        )
-                    )
-                    if (res.code == 200) successCount++ else failCount++
-                } catch (_: Exception) {
-                    failCount++
-                }
-            }
-
-            val msg = "提交完成: 成功 $successCount 条, 失败 $failCount 条"
-            _state.value = _state.value.copy(submitting = false, message = msg,
-                completed = successCount > 0 && failCount == 0)
-            if (successCount > 0) {
-                loadOrder(orderNo) // 重新加载刷新已收数据
             }
         }
     }

@@ -2,7 +2,6 @@ package com.warehouse.scanner.ui.scanner
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -24,10 +23,16 @@ fun ScannerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("扫码入库") },
+                title = { Text("看板扫码入库") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "返回")
+                    }
+                },
+                actions = {
+                    // 手动输入兜底
+                    IconButton(onClick = { viewModel.showCamera() }) {
+                        Icon(Icons.Default.QrCodeScanner, "扫码")
                     }
                 }
             )
@@ -37,109 +42,109 @@ fun ScannerScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 步骤1: 扫描 / 输入入库单号
+            // 扫码按钮
             item {
-                Card {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("步骤 1: 选择入库单",
-                            style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = state.orderNo,
-                            onValueChange = viewModel::onOrderNoChange,
-                            label = { Text("入库单号") },
-                            placeholder = { Text("扫描看板二维码或手动输入") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            trailingIcon = {
-                                IconButton(onClick = { viewModel.showCamera() }) {
-                                    Icon(Icons.Default.QrCodeScanner, "扫描")
-                                }
-                            }
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("扫描看板标签二维码",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("每箱一个码，扫码即入库",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(16.dp))
                         Button(
-                            onClick = viewModel::loadOrder,
-                            enabled = state.orderNo.isNotBlank() && !state.loading,
-                            modifier = Modifier.fillMaxWidth()
+                            onClick = { viewModel.showCamera() },
+                            modifier = Modifier.fillMaxWidth().height(56.dp)
                         ) {
-                            if (state.loading) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Spacer(modifier = Modifier.width(8.dp))
-                            }
-                            Text("加载入库单")
+                            Icon(Icons.Default.QrCodeScanner, null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("打开扫码", style = MaterialTheme.typography.titleMedium)
                         }
                     }
                 }
             }
 
-            // 提示 / 错误信息
+            // 手动输入兜底
+            item {
+                OutlinedTextField(
+                    value = state.orderNo,
+                    onValueChange = viewModel::onOrderNoChange,
+                    label = { Text("或手动输入入库单号") },
+                    placeholder = { Text("R20260611001") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        if (state.orderNo.isNotBlank() && !state.loading) {
+                            IconButton(onClick = viewModel::loadOrder) {
+                                Icon(Icons.Default.Search, "查询")
+                            }
+                        }
+                    }
+                )
+                if (state.orderInfo.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(state.orderInfo,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // 状态消息
             if (state.message.isNotEmpty()) {
                 item {
                     Card(colors = CardDefaults.cardColors(
                         containerColor = if (state.error) MaterialTheme.colorScheme.errorContainer
-                        else if (state.completed) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.secondaryContainer
+                        else MaterialTheme.colorScheme.primaryContainer
                     )) {
-                        Text(text = state.message, modifier = Modifier.padding(16.dp))
-                    }
-                }
-            }
-
-            // 步骤2: 订单信息
-            if (state.orderInfo.isNotEmpty()) {
-                item {
-                    Text("步骤 2: 确认入库数量",
-                        style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                }
-                item {
-                    Card {
-                        Text(text = state.orderInfo, modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-
-                // 零件清单
-                items(state.parts) { part ->
-                    Card {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("${part.partCode} ${part.partName}", fontWeight = FontWeight.Medium)
-                                    Text("计划: ${fmt(part.plannedQty)} ${part.unit}  |  已收: ${fmt(part.alreadyReceived)}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                OutlinedTextField(
-                                    value = part.receiveQty,
-                                    onValueChange = { viewModel.onReceiveQtyChange(part.partCode, it) },
-                                    label = { Text("入库数") },
-                                    singleLine = true,
-                                    modifier = Modifier.width(100.dp)
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                state.message,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            // 显示扫描进度
+                            if (state.progress != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                val p = state.progress!!
+                                val pct = if (p.boxTotal > 0) p.boxScanned.toFloat() / p.boxTotal else 0f
+                                Text("${p.partName}: ${p.boxScanned}/${p.boxTotal} 箱已入库",
+                                    style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                LinearProgressIndicator(
+                                    progress = { pct },
+                                    modifier = Modifier.fillMaxWidth().height(8.dp),
                                 )
                             }
                         }
                     }
                 }
+            }
 
-                // 提交按钮
+            // 确认按钮（需确认后才能继续）
+            if (state.needConfirm) {
                 item {
                     Button(
-                        onClick = viewModel::submitAll,
-                        enabled = !state.submitting && state.parts.any {
-                            (it.receiveQty.toDoubleOrNull() ?: 0.0) > 0 },
-                        modifier = Modifier.fillMaxWidth().height(56.dp)
+                        onClick = viewModel::confirmContinue,
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
                     ) {
-                        if (state.submitting) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Icon(Icons.Default.CheckCircle, contentDescription = null)
+                        Icon(Icons.Default.CheckCircle, null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("确认入库", style = MaterialTheme.typography.titleMedium)
+                        Text("确认，继续扫下一箱", style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
@@ -154,5 +159,3 @@ fun ScannerScreen(
         )
     }
 }
-
-private fun fmt(v: Double) = if (v == v.toLong().toDouble()) v.toLong().toString() else v.toString()

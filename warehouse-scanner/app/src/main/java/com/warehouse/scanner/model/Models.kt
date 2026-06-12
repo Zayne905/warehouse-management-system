@@ -40,6 +40,32 @@ data class ScanSubmitRequest(
     val operatorId: Long
 )
 
+// ==================== 看板扫码 ====================
+
+data class KanbanScanRequest(
+    val kanbanNo: String,
+    val partCode: String,
+    val partName: String,
+    val supplierName: String,
+    val quantity: Int,
+    val warehouseArea: String,
+    val inboundOrderNo: String,
+    val boxSeq: Int,
+    val operatorId: Long
+)
+
+data class KanbanScanResult(
+    val success: Boolean,
+    val kanbanNo: String,
+    val partCode: String,
+    val partName: String,
+    val quantity: Int,
+    val boxSeq: Int,
+    val boxScanned: Int,
+    val boxTotal: Int,
+    val orderStatus: Int
+)
+
 data class ScanFeedbackRequest(
     val orderNo: String,
     val partCode: String? = null

@@ -19,6 +19,9 @@ interface ApiService {
     @POST("scan/submit")
     suspend fun submitScan(@Body request: ScanSubmitRequest): ApiResult<ScanSubmitResult>
 
+    @POST("scan/kanban")
+    suspend fun scanKanban(@Body request: KanbanScanRequest): ApiResult<KanbanScanResult>
+
     @POST("scan/feedback")
     suspend fun getScanFeedback(@Body request: ScanFeedbackRequest): ApiResult<Map<String, Any>>
 

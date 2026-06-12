@@ -3,12 +3,12 @@ package com.warehouse.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.warehouse.mapper.InboundOrderDetailMapper;
 import com.warehouse.mapper.InboundOrderMapper;
+import com.warehouse.mapper.KanbanMapper;
 import com.warehouse.mapper.ScanRecordMapper;
+import com.warehouse.model.dto.KanbanScanDTO;
 import com.warehouse.model.dto.ScanDuplicateCheckDTO;
 import com.warehouse.model.dto.ScanSubmitDTO;
-import com.warehouse.model.entity.InboundOrder;
-import com.warehouse.model.entity.InboundOrderDetail;
-import com.warehouse.model.entity.ScanRecord;
+import com.warehouse.model.entity.*;
 import com.warehouse.model.enums.InboundStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,15 +23,18 @@ public class ScanService {
     private final InboundOrderMapper inboundOrderMapper;
     private final InboundOrderDetailMapper detailMapper;
     private final InboundOrderService inboundOrderService;
+    private final KanbanMapper kanbanMapper;
 
     public ScanService(ScanRecordMapper scanRecordMapper,
                        InboundOrderMapper inboundOrderMapper,
                        InboundOrderDetailMapper detailMapper,
-                       InboundOrderService inboundOrderService) {
+                       InboundOrderService inboundOrderService,
+                       KanbanMapper kanbanMapper) {
         this.scanRecordMapper = scanRecordMapper;
         this.inboundOrderMapper = inboundOrderMapper;
         this.detailMapper = detailMapper;
         this.inboundOrderService = inboundOrderService;
+        this.kanbanMapper = kanbanMapper;
     }
 
     // ==================== 检查重复 ====================
@@ -212,5 +215,93 @@ public class ScanService {
         return records.stream()
                 .map(r -> r.getScanQty() != null ? r.getScanQty() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    // ==================== 看板扫码入库 ====================
+
+    /**
+     * 扫看板码自动收货一箱
+     */
+    @Transactional
+    public Map<String, Object> scanKanban(KanbanScanDTO dto) {
+        Map<String, Object> result = new HashMap<>();
+
+        // 1. 校验看板号是否已扫过
+        Long existCount = scanRecordMapper.selectCount(
+                new QueryWrapper<ScanRecord>().eq("kanban_no", dto.getKanbanNo()));
+        if (existCount > 0) {
+            throw new RuntimeException("该箱已入库，看板号: " + dto.getKanbanNo());
+        }
+
+        // 2. 查找入库单
+        InboundOrder order = inboundOrderMapper.selectOne(
+                new QueryWrapper<InboundOrder>().eq("order_no", dto.getInboundOrderNo()));
+        if (order == null) {
+            throw new RuntimeException("入库单不存在: " + dto.getInboundOrderNo());
+        }
+        if (order.getStatus().equals(InboundStatus.CANCELLED.getCode())) {
+            throw new RuntimeException("入库单已作废，无法入库");
+        }
+
+        // 3. 查找明细行
+        InboundOrderDetail detail = findDetail(order.getId(), dto.getPartCode());
+        if (detail == null) {
+            throw new RuntimeException("该物料不在入库单明细中");
+        }
+
+        // 4. 创建扫描记录
+        ScanRecord record = new ScanRecord();
+        record.setInboundOrderId(order.getId());
+        record.setInboundOrderNo(order.getOrderNo());
+        record.setPartId(detail.getPartId());
+        record.setPartCode(dto.getPartCode());
+        record.setPartName(dto.getPartName());
+        record.setKanbanNo(dto.getKanbanNo());
+        record.setScanQty(BigDecimal.valueOf(dto.getQuantity() != null ? dto.getQuantity() : 0));
+        record.setScanTime(java.time.LocalDateTime.now());
+        record.setOperatorId(dto.getOperatorId());
+        scanRecordMapper.insert(record);
+
+        // 5. 更新明细实入数量
+        detail.setActualQty(detail.getActualQty().add(record.getScanQty()));
+        detailMapper.updateById(detail);
+
+        // 6. 更新看板状态
+        Kanban kanban = kanbanMapper.selectOne(
+                new QueryWrapper<Kanban>().eq("kanban_no", dto.getKanbanNo()));
+        if (kanban != null) {
+            kanban.setStatus(1); // 已入库
+            kanbanMapper.updateById(kanban);
+        }
+
+        // 7. 重新计算订单状态
+        inboundOrderService.recalculateStatus(order.getId());
+
+        // 8. 返回该零件的收货进度
+        int boxTotal = 0;
+        if (kanban != null) {
+            // 统计该零件总共有多少箱
+            boxTotal = kanbanMapper.selectCount(
+                    new QueryWrapper<Kanban>()
+                            .eq("inbound_order_id", order.getId())
+                            .eq("part_id", detail.getPartId())).intValue();
+        }
+        int boxScanned = (int) scanRecordMapper.selectCount(
+                new QueryWrapper<ScanRecord>()
+                        .eq("inbound_order_id", order.getId())
+                        .eq("part_id", detail.getPartId())
+                        .isNotNull("kanban_no")).longValue();
+
+        result.put("success", true);
+        result.put("kanbanNo", dto.getKanbanNo());
+        result.put("partCode", dto.getPartCode());
+        result.put("partName", dto.getPartName());
+        result.put("quantity", dto.getQuantity());
+        result.put("boxSeq", dto.getBoxSeq());
+        result.put("boxScanned", boxScanned);
+        result.put("boxTotal", boxTotal);
+        result.put("orderStatus", order.getStatus());
+
+        return result;
     }
 }
