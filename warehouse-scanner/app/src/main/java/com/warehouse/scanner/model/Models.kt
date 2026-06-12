@@ -65,10 +65,10 @@ data class KanbanScanResult(
     val boxTotal: Int,
     val plannedQty: Double,
     val actualQty: Double,
-    val unit: String,
-    val inboundOrderNo: String,
-    val supplierName: String,
-    val warehouseArea: String,
+    val unit: String?,
+    val inboundOrderNo: String?,
+    val supplierName: String?,
+    val warehouseArea: String?,
     val orderStatus: Int,
     val orderStatusText: String
 )

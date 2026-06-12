@@ -317,7 +317,7 @@ public class ScanService {
         result.put("boxTotal", boxTotal);
         result.put("plannedQty", detail.getPlannedQty());
         result.put("actualQty", detail.getActualQty() != null ? detail.getActualQty() : BigDecimal.ZERO);
-        result.put("unit", detail.getUnit());
+        result.put("unit", detail.getUnit() != null ? detail.getUnit() : "");
         result.put("inboundOrderNo", order.getOrderNo());
         result.put("supplierName", order.getSupplierName());
         result.put("warehouseArea", dto.getWarehouseArea());

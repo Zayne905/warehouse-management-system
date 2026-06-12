@@ -129,13 +129,13 @@ class ScannerViewModel : ViewModel() {
                             quantity = r.quantity,
                             plannedQty = r.plannedQty,
                             actualQty = r.actualQty,
-                            unit = r.unit,
-                            inboundOrderNo = r.inboundOrderNo,
-                            supplierName = r.supplierName,
-                            warehouseArea = r.warehouseArea,
+                            unit = r.unit ?: "",
+                            inboundOrderNo = r.inboundOrderNo ?: "",
+                            supplierName = r.supplierName ?: "",
+                            warehouseArea = r.warehouseArea ?: "",
                             boxSeq = r.boxSeq,
                             orderStatus = r.orderStatus,
-                            orderStatusText = r.orderStatusText
+                            orderStatusText = r.orderStatusText ?: ""
                         ),
                         error = false
                     )
