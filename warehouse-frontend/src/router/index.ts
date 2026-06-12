@@ -70,6 +70,24 @@ const router = createRouter({
           meta: { title: '出库管理', icon: 'Upload' },
         },
         {
+          path: 'inventory/outbound/create',
+          name: 'OutboundCreate',
+          component: () => import('@/views/inventory/outbound/OutboundForm.vue'),
+          meta: { title: '新增出库单', icon: 'Upload', hidden: true },
+        },
+        {
+          path: 'inventory/outbound/edit/:id',
+          name: 'OutboundEdit',
+          component: () => import('@/views/inventory/outbound/OutboundForm.vue'),
+          meta: { title: '编辑出库单', icon: 'Upload', hidden: true },
+        },
+        {
+          path: 'inventory/outbound/detail/:id',
+          name: 'OutboundDetail',
+          component: () => import('@/views/inventory/outbound/OutboundDetail.vue'),
+          meta: { title: '出库单详情', icon: 'Upload', hidden: true },
+        },
+        {
           path: 'system/user',
           name: 'SystemUser',
           component: () => import('@/views/system/User.vue'),
