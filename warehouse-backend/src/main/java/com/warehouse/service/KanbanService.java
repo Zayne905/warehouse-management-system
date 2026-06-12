@@ -84,4 +84,9 @@ public class KanbanService {
         return kanbanMapper.selectList(
                 new QueryWrapper<Kanban>().eq("inbound_order_id", orderId).orderByAsc("box_seq"));
     }
+
+    public List<Kanban> listByPartId(Long partId) {
+        return kanbanMapper.selectList(
+                new QueryWrapper<Kanban>().eq("part_id", partId).orderByAsc("create_time"));
+    }
 }

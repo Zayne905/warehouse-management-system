@@ -9,12 +9,14 @@ import androidx.navigation.navArgument
 import com.warehouse.scanner.network.TokenProvider
 import com.warehouse.scanner.ui.home.HomeScreen
 import com.warehouse.scanner.ui.login.LoginScreen
+import com.warehouse.scanner.ui.scanner.OutboundScannerScreen
 import com.warehouse.scanner.ui.scanner.ScannerScreen
 
 object Routes {
     const val LOGIN = "login"
     const val HOME = "home"
     const val SCANNER = "scanner"
+    const val OUTBOUND_SCANNER = "outbound_scanner"
 }
 
 @Composable
@@ -37,6 +39,7 @@ fun AppNavigation() {
         composable(Routes.HOME) {
             HomeScreen(
                 onNavigateToScanner = { navController.navigate(Routes.SCANNER) },
+                onNavigateToOutboundScanner = { navController.navigate(Routes.OUTBOUND_SCANNER) },
                 onLogout = {
                     TokenProvider.clear()
                     navController.navigate(Routes.LOGIN) {
@@ -48,6 +51,10 @@ fun AppNavigation() {
 
         composable(Routes.SCANNER) {
             ScannerScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.OUTBOUND_SCANNER) {
+            OutboundScannerScreen(onBack = { navController.popBackStack() })
         }
     }
 }

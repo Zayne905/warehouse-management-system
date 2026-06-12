@@ -16,6 +16,7 @@ import com.warehouse.scanner.network.TokenProvider
 @Composable
 fun HomeScreen(
     onNavigateToScanner: () -> Unit,
+    onNavigateToOutboundScanner: () -> Unit,
     onLogout: () -> Unit
 ) {
     Scaffold(
@@ -71,13 +72,12 @@ fun HomeScreen(
                 onClick = onNavigateToScanner
             )
 
-            // 出库入口（占位）
+            // 扫码出库入口
             MenuCard(
                 icon = Icons.Default.ExitToApp,
-                title = "出库管理",
-                subtitle = "即将上线",
-                enabled = false,
-                onClick = {}
+                title = "扫码出库",
+                subtitle = "扫描看板二维码，FIFO自动出库",
+                onClick = onNavigateToOutboundScanner
             )
 
             // 库存查询入口（占位）

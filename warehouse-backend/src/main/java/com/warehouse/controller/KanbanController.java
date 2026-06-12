@@ -22,4 +22,10 @@ public class KanbanController {
     public Result<List<Kanban>> listByOrder(@RequestBody Map<String, Long> body) {
         return Result.ok(kanbanService.listByOrderId(body.get("orderId")));
     }
+
+    /** 查询某零件的所有看板（库存明细） */
+    @PostMapping("/kanban/list-by-part")
+    public Result<List<Kanban>> listByPart(@RequestBody Map<String, Long> body) {
+        return Result.ok(kanbanService.listByPartId(body.get("partId")));
+    }
 }

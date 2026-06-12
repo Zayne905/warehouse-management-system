@@ -23,25 +23,13 @@ fun ScannerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (state.mode == ScanMode.INBOUND) "看板扫码入库" else "看板扫码出库") },
+                title = { Text("看板扫码入库") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "返回")
                     }
                 },
                 actions = {
-                    Text(
-                        if (state.mode == ScanMode.INBOUND) "入库" else "出库",
-                        color = if (state.mode == ScanMode.INBOUND)
-                            MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Switch(
-                        checked = state.mode == ScanMode.OUTBOUND,
-                        onCheckedChange = { viewModel.toggleMode() }
-                    )
                     IconButton(onClick = { viewModel.showCamera() }) {
                         Icon(Icons.Default.QrCodeScanner, "扫码")
                     }

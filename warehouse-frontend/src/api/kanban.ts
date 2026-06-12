@@ -24,3 +24,11 @@ export function listKanbansByOrder(orderId: number): Promise<{
 }> {
   return request.post('/kanban/list-by-order', { orderId })
 }
+
+export function listKanbansByPart(partId: number): Promise<{
+  code: number
+  message: string
+  data: Kanban[]
+}> {
+  return request.post('/kanban/list-by-part', { partId })
+}
