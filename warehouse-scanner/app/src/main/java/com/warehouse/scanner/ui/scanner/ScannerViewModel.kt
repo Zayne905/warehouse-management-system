@@ -39,7 +39,10 @@ data class ScanProgress(
     val orderStatusText: String = ""
 )
 
+enum class ScanMode { INBOUND, OUTBOUND }
+
 data class ScannerState(
+    val mode: ScanMode = ScanMode.INBOUND,
     val orderNo: String = "",
     val orderInfo: String = "",
     val loading: Boolean = false,
@@ -64,6 +67,12 @@ class ScannerViewModel : ViewModel() {
 
     fun showCamera() { _state.value = _state.value.copy(showCamera = true) }
     fun hideCamera() { _state.value = _state.value.copy(showCamera = false) }
+    fun toggleMode() {
+        _state.value = _state.value.copy(
+            mode = if (_state.value.mode == ScanMode.INBOUND) ScanMode.OUTBOUND else ScanMode.INBOUND,
+            message = "", error = false, progress = null, needConfirm = false
+        )
+    }
 
     /** 确认后继续扫下一箱 */
     fun confirmContinue() {
@@ -83,15 +92,54 @@ class ScannerViewModel : ViewModel() {
         try {
             val qr = gson.fromJson(trimmed, KanbanQrData::class.java)
             if (qr.kanbanNo.isNotBlank() && qr.partCode.isNotBlank()) {
-                // 看板模式：自动入库
-                scanKanban(qr)
+                if (_state.value.mode == ScanMode.OUTBOUND) {
+                    scanOutbound(qr)
+                } else {
+                    scanKanban(qr)
+                }
                 return
             }
-        } catch (_: Exception) { /* 不是JSON，作为单号处理 */ }
+        } catch (_: Exception) { /* 不是JSON */ }
 
-        // 兼容旧版：纯文本单号走原流程
         _state.value = _state.value.copy(orderNo = trimmed)
         loadOrder(trimmed)
+    }
+
+    /**
+     * 看板扫码出库
+     */
+    private fun scanOutbound(qr: KanbanQrData) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(submitting = true, message = "正在出库 ${qr.partName} ...", error = false)
+            try {
+                val body: Map<String, Any> = mapOf(
+                    "kanbanNo" to qr.kanbanNo,
+                    "operatorId" to 1
+                )
+                val res = RetrofitClient.api.scanOutbound(body)
+                if (res.code == 200 && res.data != null) {
+                    val r = res.data
+                    _state.value = _state.value.copy(
+                        submitting = false, needConfirm = true,
+                        message = "✅ ${r.partName} ×${r.quantity} 已出库",
+                        progress = ScanProgress(
+                            partCode = r.partCode, partName = r.partName,
+                            boxScanned = 0, boxTotal = 0, quantity = r.quantity,
+                            plannedQty = r.plannedQty ?: 0.0, actualQty = r.actualQty ?: 0.0,
+                            inboundOrderNo = qr.inboundOrderNo, supplierName = qr.supplierName,
+                            warehouseArea = qr.warehouseArea, boxSeq = qr.boxSeq
+                        ),
+                        error = false
+                    )
+                } else {
+                    _state.value = _state.value.copy(submitting = false, error = true,
+                        message = "⚠️ ${res.message}")
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(submitting = false, error = true,
+                    message = "网络错误: ${e.localizedMessage}")
+            }
+        }
     }
 
     /**

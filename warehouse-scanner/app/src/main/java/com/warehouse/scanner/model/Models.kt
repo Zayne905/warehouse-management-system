@@ -73,6 +73,18 @@ data class KanbanScanResult(
     val orderStatusText: String
 )
 
+// ==================== 出库看板扫码 ====================
+
+data class OutboundScanResult(
+    val success: Boolean,
+    val kanbanNo: String,
+    val partCode: String,
+    val partName: String,
+    val quantity: Int,
+    val plannedQty: Double?,
+    val actualQty: Double?
+)
+
 data class ScanFeedbackRequest(
     val orderNo: String,
     val partCode: String? = null

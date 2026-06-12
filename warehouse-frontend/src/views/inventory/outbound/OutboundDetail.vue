@@ -5,7 +5,8 @@
         <div class="card-header">
           <span>出库单详情</span>
           <div>
-            <el-button size="small" v-if="order.status !== 2" type="success" @click="showScanDialog = true"><el-icon><Search /></el-icon>扫码出库</el-button>
+            <el-button size="small" @click="printOrder"><el-icon><Printer /></el-icon>打印</el-button>
+            <el-button size="small" v-if="order.status !== 2 && order.status !== 3" type="success" @click="showScanDialog = true"><el-icon><Search /></el-icon>扫码出库</el-button>
             <el-button size="small" @click="router.back()"><el-icon><Back /></el-icon>返回</el-button>
           </div>
         </div>
@@ -66,7 +67,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Back, Search } from '@element-plus/icons-vue'
+import { Back, Search, Printer } from '@element-plus/icons-vue'
 import { getOutboundDetailApi, scanOutboundApi } from '@/api/outbound'
 
 const route = useRoute(); const router = useRouter()
@@ -84,6 +85,29 @@ async function loadData() {
 }
 
 onMounted(loadData)
+
+function printOrder() {
+  const o = order.value; const details = o.details || []
+  const totalQty = details.reduce((s: number, d: any) => s + (d.plannedQty || 0), 0)
+  const rows = details.map((d: any) =>
+    `<tr><td>${d.partCode}</td><td>${d.partName}</td><td>${d.unit}</td><td>${d.plannedQty}</td><td>${d.actualQty||0}</td><td>${d.boxCount||0}</td></tr>`).join('')
+  const win = window.open('', '_blank', 'width=800,height=600')
+  if (!win) return
+  win.document.write(`<html><head><title>出库单-${o.orderNo}</title>
+    <style>body{font-family:'Microsoft YaHei',sans-serif;padding:20px}h2{text-align:center}
+    .info{width:100%;border-collapse:collapse;margin-bottom:16px}.info td{padding:8px;border:1px solid #333}
+    .info .lbl{background:#f0f0f0;font-weight:bold;width:14%}
+    .dt{width:100%;border-collapse:collapse;font-size:12px}.dt th,.dt td{padding:4px 6px;border:1px solid #333;text-align:center}
+    .dt thead{background:#f0f0f0}@media print{button{display:none}}</style></head><body>
+    <h2>出库单</h2>
+    <table class="info"><tr><td class="lbl">出库单号</td><td>${o.orderNo}</td><td class="lbl">状态</td><td>${o.statusText}</td></tr>
+    <tr><td class="lbl">创建时间</td><td>${o.createTime}</td><td class="lbl">计划总数</td><td style="font-weight:bold;color:#409eff">${totalQty}</td></tr></table>
+    <h4>零件明细</h4>
+    <table class="dt"><thead><tr><th>物料编码</th><th>物料名称</th><th>单位</th><th>计划出库</th><th>实出</th><th>箱数</th></tr></thead><tbody>${rows}</tbody></table>
+    <p style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 40px;font-size:16px">打印</button></p>
+  </body></html>`)
+  win.document.close(); win.focus()
+}
 
 async function doScanOutbound() {
   if (!scanKanbanNo.value.trim()) { ElMessage.warning('请输入看板号'); return }
