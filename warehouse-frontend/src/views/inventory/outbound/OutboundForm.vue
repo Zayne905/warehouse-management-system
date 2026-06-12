@@ -35,10 +35,13 @@
             <el-input-number v-model="row.plannedQty" :min="0" :max="row._stock||99999" controls-position="right" size="small" style="width:100%" />
           </template>
         </el-table-column>
+        <el-table-column label="包装容量" width="90" align="center">
+          <template #default="{ row }">{{ row.packageCapacity || 1 }}</template>
+        </el-table-column>
         <el-table-column label="箱数" width="100">
           <template #default="{ row }">
             <el-input-number v-model="row.boxCount" :min="0" size="small" controls-position="right" style="width:100%"
-              @change="(v: number) => row.plannedQty = v * (row.packageCapacity||1)" />
+              @change="onBoxChange(row)" />
           </template>
         </el-table-column>
         <el-table-column label="实出" width="70" align="center">
@@ -106,6 +109,9 @@ onMounted(async () => {
 
 function onSelect(rows: any[]) { selectedRows.value = rows }
 function onPartSelect(rows: any[]) { selParts.value = rows }
+function onBoxChange(row: any) {
+  row.plannedQty = (row.boxCount || 0) * (row.packageCapacity || 1)
+}
 function removeRows() {
   const ids = new Set(selectedRows.value.map((r: any) => r.partId))
   details.value = details.value.filter(d => !ids.has(d.partId))
