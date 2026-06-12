@@ -140,9 +140,22 @@ class ScannerViewModel : ViewModel() {
                         error = false
                     )
                 } else {
+                    // 失败时也展示QR中的基本信息
                     _state.value = _state.value.copy(
                         submitting = false, error = true,
-                        message = res.message
+                        needConfirm = true,
+                        lastScannedKanban = qr.kanbanNo,
+                        message = "⚠️ ${res.message}",
+                        progress = ScanProgress(
+                            partCode = qr.partCode,
+                            partName = qr.partName,
+                            quantity = qr.quantity,
+                            unit = "",
+                            boxSeq = qr.boxSeq,
+                            inboundOrderNo = qr.inboundOrderNo,
+                            supplierName = qr.supplierName,
+                            warehouseArea = qr.warehouseArea
+                        )
                     )
                 }
             } catch (e: Exception) {
