@@ -6,7 +6,7 @@
           <span>入库单详情</span>
           <div>
             <el-button
-              v-if="canReceive"
+              v-if="canReceive && authStore.role === 'admin'"
               size="small"
               type="success"
               @click="openReceiveCart"

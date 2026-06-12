@@ -10,6 +10,7 @@ import com.warehouse.model.dto.ScanDuplicateCheckDTO;
 import com.warehouse.model.dto.ScanSubmitDTO;
 import com.warehouse.model.entity.*;
 import com.warehouse.model.enums.InboundStatus;
+import com.warehouse.security.SecurityUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -71,6 +72,9 @@ public class ScanService {
 
     @Transactional
     public Map<String, Object> submitScan(ScanSubmitDTO dto) {
+        if (!SecurityUtils.isAdmin()) {
+            throw new RuntimeException("只有管理员才能执行入库操作");
+        }
         InboundOrder order = inboundOrderMapper.selectById(dto.getInboundOrderId());
         if (order == null) {
             throw new RuntimeException("入库单不存在");
@@ -224,6 +228,9 @@ public class ScanService {
      */
     @Transactional
     public Map<String, Object> scanKanban(KanbanScanDTO dto) {
+        if (!SecurityUtils.isAdmin()) {
+            throw new RuntimeException("只有管理员才能执行入库操作");
+        }
         Map<String, Object> result = new HashMap<>();
 
         // 1. 校验看板号是否已扫过
