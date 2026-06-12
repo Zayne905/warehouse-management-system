@@ -17,6 +17,7 @@ import com.warehouse.scanner.network.TokenProvider
 fun HomeScreen(
     onNavigateToScanner: () -> Unit,
     onNavigateToOutboundScanner: () -> Unit,
+    onNavigateToBlockUnblock: () -> Unit,
     onLogout: () -> Unit
 ) {
     Scaffold(
@@ -80,13 +81,12 @@ fun HomeScreen(
                 onClick = onNavigateToOutboundScanner
             )
 
-            // 库存查询入口（占位）
+            // 扫码封存/解封入口
             MenuCard(
-                icon = Icons.Default.Inventory,
-                title = "库存查询",
-                subtitle = "即将上线",
-                enabled = false,
-                onClick = {}
+                icon = Icons.Default.Lock,
+                title = "扫码封存/解封",
+                subtitle = "在库可用自动封存，已封存自动解封",
+                onClick = onNavigateToBlockUnblock
             )
         }
     }

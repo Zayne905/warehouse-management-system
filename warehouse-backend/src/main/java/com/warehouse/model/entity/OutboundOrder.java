@@ -12,8 +12,9 @@ public class OutboundOrder {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String orderNo;
-    private Integer status;       // 0=待出库 1=部分出库 2=已完成 3=作废
+    private Integer status;       // 0=未出库 1=部分出库 2=已出库 3=作废
     private String remark;
+    private String customerName;
     private Long createUserId;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

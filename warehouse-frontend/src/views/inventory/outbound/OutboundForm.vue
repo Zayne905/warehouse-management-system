@@ -10,6 +10,9 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="客户">
+          <el-input v-model="form.customerName" placeholder="客户名称" style="width:240px" />
+        </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="备注信息" />
         </el-form-item>
@@ -40,7 +43,7 @@
         </el-table-column>
         <el-table-column label="箱数" width="100">
           <template #default="{ row }">
-            <el-input-number v-model="row.boxCount" :min="0" size="small" controls-position="right" style="width:100%"
+            <el-input-number v-model="row.boxCount" :min="0" :max="maxBoxCount(row)" size="small" controls-position="right" style="width:100%"
               @change="onBoxChange(row)" />
           </template>
         </el-table-column>
@@ -61,7 +64,7 @@
     </div>
 
     <!-- 零件选择器 -->
-    <el-dialog v-model="showPartSelector" title="选择零件" width="600px">
+    <el-dialog v-model="showPartSelector" title="选择零件（仅显示有库存的零件）" width="600px">
       <el-table :data="partList" border stripe @selection-change="onPartSelect">
         <el-table-column type="selection" width="45" />
         <el-table-column prop="code" label="编码" width="120" />
@@ -91,7 +94,7 @@ import { saveOutboundApi, getOutboundDetailApi, getAvailableStockApi } from '@/a
 const router = useRouter(); const route = useRoute()
 const isEdit = ref(false); const showPartSelector = ref(false)
 const selectedRows = ref<any[]>([]); const selParts = ref<any[]>([])
-const form = reactive({ id: undefined as number|undefined, orderNo: '', remark: '' })
+const form = reactive({ id: undefined as number|undefined, orderNo: '', remark: '', customerName: '' })
 const details = ref<any[]>([])
 const partList = ref<any[]>([])
 
@@ -101,7 +104,7 @@ onMounted(async () => {
     isEdit.value = true
     try {
       const res = await getOutboundDetailApi(Number(editId))
-      const o = res.data; form.id = o.id; form.orderNo = o.orderNo; form.remark = o.remark || ''
+      const o = res.data; form.id = o.id; form.orderNo = o.orderNo; form.remark = o.remark || ''; form.customerName = o.customerName || ''
       details.value = (o.details || []).map((d: any) => ({ ...d, _stock: d.availableStock }))
     } catch { /* */ }
   }
@@ -109,7 +112,15 @@ onMounted(async () => {
 
 function onSelect(rows: any[]) { selectedRows.value = rows }
 function onPartSelect(rows: any[]) { selParts.value = rows }
+function maxBoxCount(row: any): number {
+  const stock = row._stock || 0
+  const cap = row.packageCapacity || 1
+  return Math.floor(stock / cap)
+}
 function onBoxChange(row: any) {
+  // 箱数不能超过最大可用箱数
+  const max = maxBoxCount(row)
+  if (row.boxCount > max) row.boxCount = max
   row.plannedQty = (row.boxCount || 0) * (row.packageCapacity || 1)
 }
 function removeRows() {
@@ -148,15 +159,19 @@ function addSelectedParts() {
 async function doSave() {
   if (details.value.length === 0) { ElMessage.warning('请添加零件'); return }
   try {
-    await saveOutboundApi({
-      id: form.id, remark: form.remark,
+    const res = await saveOutboundApi({
+      id: form.id, remark: form.remark, customerName: form.customerName,
       details: details.value.map((d, i) => ({
         partId: d.partId, plannedQty: d.plannedQty,
         boxCount: d.boxCount || 0,
         unit: d.unit, warehouseAreaId: d.warehouseAreaId, lineNo: i + 1
       }))
     })
-    ElMessage.success('保存成功'); router.push('/inventory/outbound')
+    const o = res.data
+    const kanbanCount = o.pendingKanbans?.length || 0
+    ElMessage.success(`保存成功！系统已自动匹配 ${kanbanCount} 箱待出库，请到详情页按清单扫码出库。`)
+    // 跳转到详情页查看待出库清单
+    router.push(`/inventory/outbound/detail/${o.id}`)
   } catch { /* */ }
 }
 </script>

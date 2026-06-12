@@ -4,7 +4,11 @@
       "Bash(mvn compile *)",
       "Bash(sc query *)",
       "Bash(node -e \"const bcrypt = require\\('bcryptjs'\\); console.log\\(bcrypt.hashSync\\('admin123', bcrypt.genSaltSync\\(10\\)\\)\\);\")",
-      "Bash(npx -y bcryptjs-cli hash admin123)"
+      "Bash(npx -y bcryptjs-cli hash admin123)",
+      "Bash(mysql -u root -proot -e \"SELECT 1\")",
+      "Bash(mysql -u root -p123456 -e \"SELECT 1\")",
+      "Bash(mysql --version)",
+      "Bash(where mysql *)"
     ]
   }
 }

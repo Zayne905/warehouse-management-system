@@ -3,6 +3,7 @@ package com.warehouse.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.warehouse.mapper.InboundOrderMapper;
 import com.warehouse.mapper.KanbanMapper;
+import com.warehouse.mapper.OutboundScanMapper;
 import com.warehouse.model.dto.InboundDetailDTO;
 import com.warehouse.model.entity.*;
 import org.springframework.stereotype.Service;
@@ -11,20 +12,25 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class KanbanService {
 
     private final KanbanMapper kanbanMapper;
     private final InboundOrderMapper inboundOrderMapper;
+    private final OutboundScanMapper outboundScanMapper;
     private final PartService partService;
     private final WarehouseAreaService warehouseAreaService;
 
     public KanbanService(KanbanMapper kanbanMapper, InboundOrderMapper inboundOrderMapper,
+                         OutboundScanMapper outboundScanMapper,
                          PartService partService, WarehouseAreaService warehouseAreaService) {
         this.kanbanMapper = kanbanMapper;
         this.inboundOrderMapper = inboundOrderMapper;
+        this.outboundScanMapper = outboundScanMapper;
         this.partService = partService;
         this.warehouseAreaService = warehouseAreaService;
     }
@@ -72,7 +78,7 @@ public class KanbanService {
                     WarehouseArea area = warehouseAreaService.getById(areaId);
                     k.setWarehouseAreaName(area != null ? area.getName() : null);
                 }
-                k.setStatus(0); // 待入库
+                k.setStatus(Kanban.STATUS_AVAILABLE); // 在库可用
                 kanbanMapper.insert(k);
                 kanbans.add(k);
             }
@@ -86,7 +92,115 @@ public class KanbanService {
     }
 
     public List<Kanban> listByPartId(Long partId) {
-        return kanbanMapper.selectList(
+        List<Kanban> list = kanbanMapper.selectList(
                 new QueryWrapper<Kanban>().eq("part_id", partId).orderByAsc("create_time"));
+
+        // 为已出库看板填充扫码时间
+        List<String> outboundNos = new ArrayList<>();
+        for (Kanban k : list) {
+            if (k.getStatus() == Kanban.STATUS_OUTBOUND && k.getKanbanNo() != null) {
+                outboundNos.add(k.getKanbanNo());
+            }
+        }
+        if (!outboundNos.isEmpty()) {
+            List<OutboundScan> scans = outboundScanMapper.selectList(
+                    new QueryWrapper<OutboundScan>().in("kanban_no", outboundNos).orderByDesc("scan_time"));
+            Map<String, java.time.LocalDateTime> scanTimeMap = new HashMap<>();
+            for (OutboundScan s : scans) {
+                scanTimeMap.putIfAbsent(s.getKanbanNo(), s.getScanTime());
+            }
+            for (Kanban k : list) {
+                if (k.getStatus() == Kanban.STATUS_OUTBOUND) {
+                    k.setOutboundScanTime(scanTimeMap.get(k.getKanbanNo()));
+                }
+            }
+        }
+        return list;
+    }
+
+    // ========== 封存 / 解封 ==========
+
+    /** 扫码翻转子：在库可用→封存，封存→解封，其他状态报错 */
+    @Transactional
+    public Map<String, Object> toggleBlock(String kanbanNo) {
+        Kanban kanban = kanbanMapper.selectOne(
+                new QueryWrapper<Kanban>().eq("kanban_no", kanbanNo));
+        if (kanban == null) throw new RuntimeException("看板不存在: " + kanbanNo);
+
+        int oldStatus = kanban.getStatus();
+        Map<String, Object> result = new HashMap<>();
+        result.put("kanbanNo", kanban.getKanbanNo());
+        result.put("partName", kanban.getPartName());
+        result.put("partCode", kanban.getPartCode());
+        result.put("previousStatus", oldStatus);
+        result.put("previousStatusText", kanban.getStatusText());
+
+        if (kanban.getStatus() == Kanban.STATUS_AVAILABLE) {
+            kanban.setStatus(Kanban.STATUS_BLOCKED);
+            kanbanMapper.updateById(kanban);
+            result.put("action", "封存");
+            result.put("newStatus", Kanban.STATUS_BLOCKED);
+        } else if (kanban.getStatus() == Kanban.STATUS_BLOCKED) {
+            kanban.setStatus(Kanban.STATUS_AVAILABLE);
+            kanbanMapper.updateById(kanban);
+            result.put("action", "解封");
+            result.put("newStatus", Kanban.STATUS_AVAILABLE);
+        } else {
+            throw new RuntimeException("当前状态[" + kanban.getStatusText() + "]不允许封存或解封");
+        }
+        return result;
+    }
+
+    @Transactional
+    public void blockKanban(String kanbanNo) {
+        Kanban kanban = kanbanMapper.selectOne(
+                new QueryWrapper<Kanban>().eq("kanban_no", kanbanNo));
+        if (kanban == null) throw new RuntimeException("看板不存在: " + kanbanNo);
+        if (kanban.getStatus() != Kanban.STATUS_AVAILABLE) {
+            throw new RuntimeException("只有在库可用状态的条码才能封存，当前状态：" + kanban.getStatusText());
+        }
+        kanban.setStatus(Kanban.STATUS_BLOCKED);
+        kanbanMapper.updateById(kanban);
+    }
+
+    @Transactional
+    public void unblockKanban(String kanbanNo) {
+        Kanban kanban = kanbanMapper.selectOne(
+                new QueryWrapper<Kanban>().eq("kanban_no", kanbanNo));
+        if (kanban == null) throw new RuntimeException("看板不存在: " + kanbanNo);
+        if (kanban.getStatus() != Kanban.STATUS_BLOCKED) {
+            throw new RuntimeException("只有封存状态的条码才能解封，当前状态：" + kanban.getStatusText());
+        }
+        kanban.setStatus(Kanban.STATUS_AVAILABLE);
+        kanbanMapper.updateById(kanban);
+    }
+
+    @Transactional
+    public int blockByPartId(Long partId) {
+        List<Kanban> kanbans = kanbanMapper.selectList(
+                new QueryWrapper<Kanban>()
+                        .eq("part_id", partId)
+                        .eq("status", Kanban.STATUS_AVAILABLE));
+        for (Kanban k : kanbans) {
+            k.setStatus(Kanban.STATUS_BLOCKED);
+            kanbanMapper.updateById(k);
+        }
+        return kanbans.size();
+    }
+
+    /** 批量解封 */
+    @Transactional
+    public int batchUnblock(List<String> kanbanNos) {
+        int count = 0;
+        for (String no : kanbanNos) {
+            Kanban kanban = kanbanMapper.selectOne(
+                    new QueryWrapper<Kanban>().eq("kanban_no", no));
+            if (kanban != null && kanban.getStatus() == Kanban.STATUS_BLOCKED) {
+                kanban.setStatus(Kanban.STATUS_AVAILABLE);
+                kanbanMapper.updateById(kanban);
+                count++;
+            }
+        }
+        return count;
     }
 }

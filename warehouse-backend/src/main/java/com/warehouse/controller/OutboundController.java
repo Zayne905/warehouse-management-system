@@ -23,7 +23,9 @@ public class OutboundController {
         int size = body.get("size") != null ? Integer.parseInt(body.get("size").toString()) : 10;
         String orderNo = (String) body.get("orderNo");
         Integer status = body.get("status") != null ? Integer.parseInt(body.get("status").toString()) : null;
-        return Result.ok(outboundService.list(current, size, orderNo, status));
+        String supplier = (String) body.get("supplier");
+        String customerName = (String) body.get("customerName");
+        return Result.ok(outboundService.list(current, size, orderNo, status, supplier, customerName));
     }
 
     @PostMapping("/outbound-order/detail")
@@ -67,5 +69,13 @@ public class OutboundController {
     @PostMapping("/outbound/available-stock")
     public Result<?> availableStock(@RequestBody Map<String, Long> body) {
         return Result.ok(outboundService.getAvailableStock(body.get("partId")));
+    }
+
+    /**
+     * 查询出库单的待出库清单（锁定看板列表）
+     */
+    @PostMapping("/outbound-order/pending-kanbans")
+    public Result<?> pendingKanbans(@RequestBody Map<String, Long> body) {
+        return Result.ok(outboundService.getPendingKanbans(body.get("id")));
     }
 }

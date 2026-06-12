@@ -85,6 +85,16 @@ data class OutboundScanResult(
     val actualQty: Double?
 )
 
+data class ToggleBlockResult(
+    val kanbanNo: String,
+    val partCode: String,
+    val partName: String,
+    val action: String,
+    val previousStatus: Int,
+    val previousStatusText: String,
+    val newStatus: Int
+)
+
 data class ScanFeedbackRequest(
     val orderNo: String,
     val partCode: String? = null
