@@ -26,7 +26,17 @@ data class ScanProgress(
     val partCode: String,
     val partName: String,
     val boxScanned: Int,
-    val boxTotal: Int
+    val boxTotal: Int,
+    val quantity: Int = 0,
+    val plannedQty: Double = 0.0,
+    val actualQty: Double = 0.0,
+    val unit: String = "",
+    val inboundOrderNo: String = "",
+    val supplierName: String = "",
+    val warehouseArea: String = "",
+    val boxSeq: Int = 0,
+    val orderStatus: Int = 0,
+    val orderStatusText: String = ""
 )
 
 data class ScannerState(
@@ -36,11 +46,10 @@ data class ScannerState(
     val submitting: Boolean = false,
     val message: String = "",
     val error: Boolean = false,
-    // 看板模式 — 最近一次扫描的零件进度
     val progress: ScanProgress? = null,
     val lastScannedKanban: String = "",
     val showCamera: Boolean = false,
-    val needConfirm: Boolean = false  // 需确认后才能扫下一箱
+    val needConfirm: Boolean = false
 )
 
 class ScannerViewModel : ViewModel() {
@@ -111,12 +120,22 @@ class ScannerViewModel : ViewModel() {
                         submitting = false,
                         needConfirm = true,
                         lastScannedKanban = qr.kanbanNo,
-                        message = "✅ ${r.partName} C-${r.boxSeq}箱 已入库 (${r.quantity}个)",
+                        message = "✅ ${r.partName} C-${r.boxSeq}箱 已入库 (${r.quantity}${r.unit})",
                         progress = ScanProgress(
                             partCode = r.partCode,
                             partName = r.partName,
                             boxScanned = r.boxScanned,
-                            boxTotal = r.boxTotal
+                            boxTotal = r.boxTotal,
+                            quantity = r.quantity,
+                            plannedQty = r.plannedQty,
+                            actualQty = r.actualQty,
+                            unit = r.unit,
+                            inboundOrderNo = r.inboundOrderNo,
+                            supplierName = r.supplierName,
+                            warehouseArea = r.warehouseArea,
+                            boxSeq = r.boxSeq,
+                            orderStatus = r.orderStatus,
+                            orderStatusText = r.orderStatusText
                         ),
                         error = false
                     )

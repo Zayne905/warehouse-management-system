@@ -315,7 +315,14 @@ public class ScanService {
         result.put("boxSeq", dto.getBoxSeq());
         result.put("boxScanned", boxScanned);
         result.put("boxTotal", boxTotal);
+        result.put("plannedQty", detail.getPlannedQty());
+        result.put("actualQty", detail.getActualQty() != null ? detail.getActualQty() : BigDecimal.ZERO);
+        result.put("unit", detail.getUnit());
+        result.put("inboundOrderNo", order.getOrderNo());
+        result.put("supplierName", order.getSupplierName());
+        result.put("warehouseArea", dto.getWarehouseArea());
         result.put("orderStatus", order.getStatus());
+        result.put("orderStatusText", InboundStatus.getLabelByCode(order.getStatus()));
 
         return result;
     }

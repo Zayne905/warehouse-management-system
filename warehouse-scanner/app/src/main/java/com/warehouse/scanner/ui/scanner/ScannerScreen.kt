@@ -109,18 +109,54 @@ fun ScannerScreen(
                         else MaterialTheme.colorScheme.primaryContainer
                     )) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                state.message,
+                            Text(state.message,
                                 style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium
-                            )
-                            // 显示扫描进度
+                                fontWeight = FontWeight.Medium)
+                            // 看板详情卡片
                             if (state.progress != null) {
-                                Spacer(modifier = Modifier.height(8.dp))
                                 val p = state.progress!!
+                                Spacer(modifier = Modifier.height(12.dp))
+                                // 订单信息
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface
+                                    )
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text("入库单信息", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row { Text("单号: ", color = MaterialTheme.colorScheme.onSurfaceVariant); Text(p.inboundOrderNo, fontWeight = FontWeight.Medium) }
+                                        Row { Text("供应商: ", color = MaterialTheme.colorScheme.onSurfaceVariant); Text(p.supplierName) }
+                                        Row { Text("状态: ", color = MaterialTheme.colorScheme.onSurfaceVariant); Text(p.orderStatusText, color = if(p.orderStatus==2) androidx.compose.ui.graphics.Color(0xFF67C23A) else MaterialTheme.colorScheme.primary) }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                // 零件信息
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface
+                                    )
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text("零件信息", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row { Text("零件号: ", color = MaterialTheme.colorScheme.onSurfaceVariant); Text(p.partCode, fontWeight = FontWeight.Medium) }
+                                        Row { Text("零件名: ", color = MaterialTheme.colorScheme.onSurfaceVariant); Text(p.partName) }
+                                        Row { Text("库区: ", color = MaterialTheme.colorScheme.onSurfaceVariant); Text(p.warehouseArea) }
+                                        Row { Text("本箱数量: ", color = MaterialTheme.colorScheme.onSurfaceVariant); Text("${p.quantity} ${p.unit}", fontWeight = FontWeight.Bold) }
+                                        Row { Text("箱号: ", color = MaterialTheme.colorScheme.onSurfaceVariant); Text("C-${p.boxSeq}") }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row { Text("计划总数: ", color = MaterialTheme.colorScheme.onSurfaceVariant); Text(fmt(p.plannedQty)) }
+                                        Row { Text("已收合计: ", color = MaterialTheme.colorScheme.onSurfaceVariant); Text(fmt(p.actualQty)) }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                // 收货进度
                                 val pct = if (p.boxTotal > 0) p.boxScanned.toFloat() / p.boxTotal else 0f
-                                Text("${p.partName}: ${p.boxScanned}/${p.boxTotal} 箱已入库",
-                                    style = MaterialTheme.typography.bodyMedium)
+                                Text("收货进度: ${p.boxScanned}/${p.boxTotal} 箱",
+                                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 LinearProgressIndicator(
                                     progress = { pct },
