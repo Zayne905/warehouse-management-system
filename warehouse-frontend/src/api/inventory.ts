@@ -14,6 +14,8 @@ export interface InventoryVO {
   unit: string
   packageCapacity: number
   totalStock: number
+  kanbanCount: number        // 在库箱数
+  avgQtyPerBox: number        // 箱均数量
   areaStocks: AreaStock[]
 }
 

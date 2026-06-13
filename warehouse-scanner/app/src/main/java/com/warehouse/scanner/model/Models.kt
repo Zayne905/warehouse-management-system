@@ -167,3 +167,87 @@ data class ScanItem(
     val plannedQty: Double,
     var submitted: Boolean = false
 )
+
+// ==================== 转包 ====================
+
+/** 预览看板 */
+data class RepackPreviewData(
+    val kanbanNo: String,
+    val partId: Long,
+    val partCode: String,
+    val partName: String,
+    val quantity: Int,
+    val warehouseAreaId: Long?,
+    val warehouseAreaName: String?,
+    val supplierName: String?,
+    val status: Int,
+    val statusText: String,
+    val inboundOrderNo: String?,
+    val transferableQty: Int,
+    val hasTransferHistory: Boolean,
+    val transferOutCount: Int,
+    val transferInCount: Int
+)
+
+/** 转包单 */
+data class RepackOrderData(
+    val id: Long,
+    val orderNo: String,
+    val status: Int,
+    val statusText: String,
+    val repackType: String,
+    val repackTypeText: String,
+    val partId: Long?,
+    val partCode: String?,
+    val partName: String?,
+    val warehouseAreaId: Long?,
+    val warehouseAreaName: String?,
+    val detailCount: Int,
+    val totalTransferQty: Int,
+    val remark: String?,
+    val details: List<RepackDetailData>?
+)
+
+data class RepackDetailData(
+    val id: Long,
+    val sourceKanbanNo: String,
+    val transferQty: Int,
+    val targetKanbanNo: String?,
+    val partCode: String?,
+    val partName: String?,
+    val sourceRemainingQty: Int?,
+    val lineNo: Int
+)
+
+// ==================== 溯源 ====================
+
+data class TraceData(
+    val kanbanNo: String,
+    val currentKanban: TraceKanbanInfo?,
+    val parentChain: List<TraceNode>?,
+    val childChain: List<TraceNode>?
+)
+
+data class TraceKanbanInfo(
+    val kanbanNo: String,
+    val partCode: String,
+    val partName: String,
+    val quantity: Int,
+    val warehouseAreaName: String?,
+    val supplierName: String?,
+    val statusText: String,
+    val inboundOrderNo: String?,
+    val createTime: String?
+)
+
+data class TraceNode(
+    val relationId: Long,
+    val parentKanbanNo: String,
+    val childKanbanNo: String,
+    val repackOrderNo: String?,
+    val transferQty: Int,
+    val partCode: String?,
+    val partName: String?,
+    val repackTime: String?,
+    val level: Int
+)

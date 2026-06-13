@@ -44,4 +44,23 @@ interface ApiService {
 
     @POST("inbound-order/detail-by-no")
     suspend fun getInboundOrderDetailByNo(@Body body: Map<String, String>): ApiResult<InboundOrderVO>
+
+    // ==================== 转包 ====================
+
+    @POST("repack/preview")
+    suspend fun repackPreview(@Body body: Map<String, String>): ApiResult<RepackPreviewData>
+
+    @POST("repack/add-detail")
+    suspend fun repackAddDetail(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<RepackOrderData>
+
+    @POST("repack/save")
+    suspend fun repackCreate(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<RepackOrderData>
+
+    @POST("repack/confirm")
+    suspend fun repackConfirm(@Body body: Map<String, Long>): ApiResult<RepackOrderData>
+
+    // ==================== 溯源 ====================
+
+    @POST("repack/trace")
+    suspend fun repackTrace(@Body body: Map<String, String>): ApiResult<TraceData>
 }

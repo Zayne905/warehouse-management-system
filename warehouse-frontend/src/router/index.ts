@@ -70,6 +70,12 @@ const router = createRouter({
           meta: { title: '出库管理', icon: 'Upload' },
         },
         {
+          path: 'inventory/repack',
+          name: 'Repack',
+          component: () => import('@/views/inventory/repack/RepackList.vue'),
+          meta: { title: '转包管理', icon: 'Connection' },
+        },
+        {
           path: 'inventory/outbound/create',
           name: 'OutboundCreate',
           component: () => import('@/views/inventory/outbound/OutboundForm.vue'),
@@ -86,6 +92,24 @@ const router = createRouter({
           name: 'OutboundDetail',
           component: () => import('@/views/inventory/outbound/OutboundDetail.vue'),
           meta: { title: '出库单详情', icon: 'Upload', hidden: true },
+        },
+        {
+          path: 'inventory/repack/create',
+          name: 'RepackCreate',
+          component: () => import('@/views/inventory/repack/RepackForm.vue'),
+          meta: { title: '新增转包单', icon: 'Connection', hidden: true },
+        },
+        {
+          path: 'inventory/repack/edit/:id',
+          name: 'RepackEdit',
+          component: () => import('@/views/inventory/repack/RepackForm.vue'),
+          meta: { title: '编辑转包单', icon: 'Connection', hidden: true },
+        },
+        {
+          path: 'inventory/repack/detail/:id',
+          name: 'RepackDetail',
+          component: () => import('@/views/inventory/repack/RepackDetail.vue'),
+          meta: { title: '转包单详情', icon: 'Connection', hidden: true },
         },
         {
           path: 'system/user',

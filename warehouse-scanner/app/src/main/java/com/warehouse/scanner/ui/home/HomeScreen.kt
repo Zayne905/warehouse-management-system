@@ -18,6 +18,8 @@ fun HomeScreen(
     onNavigateToScanner: () -> Unit,
     onNavigateToOutboundScanner: () -> Unit,
     onNavigateToBlockUnblock: () -> Unit,
+    onNavigateToRepack: () -> Unit,
+    onNavigateToTrace: () -> Unit,
     onLogout: () -> Unit
 ) {
     Scaffold(
@@ -87,6 +89,25 @@ fun HomeScreen(
                 title = "扫码封存/解封",
                 subtitle = "在库可用自动封存，已封存自动解封",
                 onClick = onNavigateToBlockUnblock
+            )
+
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            Text("转包与追溯", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+            // 扫码转包入口
+            MenuCard(
+                icon = Icons.Default.DynamicFeed,
+                title = "扫码转包",
+                subtitle = "扫描源包装，带余量转包/合并/拆包",
+                onClick = onNavigateToRepack
+            )
+
+            // 扫码溯源入口
+            MenuCard(
+                icon = Icons.Default.TravelExplore,
+                title = "扫码溯源",
+                subtitle = "扫任意看板，追溯完整转包生命周期",
+                onClick = onNavigateToTrace
             )
         }
     }

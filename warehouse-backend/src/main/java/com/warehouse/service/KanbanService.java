@@ -59,6 +59,15 @@ public class KanbanService {
         for (InboundDetailDTO dto : details) {
             Part part = partService.getById(dto.getPartId());
             int boxCount = dto.getBoxCount() != null ? dto.getBoxCount() : 0;
+            if (boxCount <= 0) continue;
+
+            // 用实际入库量或计划入库量算出每箱数量（优先 actualQty）
+            int totalQty = (dto.getActualQty() != null && dto.getActualQty().compareTo(java.math.BigDecimal.ZERO) > 0)
+                    ? dto.getActualQty().intValue()
+                    : (dto.getPlannedQty() != null ? dto.getPlannedQty().intValue() : 0);
+            if (totalQty <= 0) continue;
+
+            int qtyPerBox = totalQty / boxCount;  // 匀分
             for (int seq = 0; seq < boxCount; seq++) {
                 Kanban k = new Kanban();
                 k.setKanbanNo(generateKanbanNo(order, part, seq));
@@ -68,7 +77,15 @@ public class KanbanService {
                 k.setPartCode(part.getCode());
                 k.setPartName(part.getName());
                 k.setSupplierName(order.getSupplierName());
-                k.setQuantity(part.getPackageCapacity() != null ? part.getPackageCapacity() : 1);
+                // 最后一箱兜底余数，确保各箱加总等于总量
+                if (seq == boxCount - 1) {
+                    int remainder = totalQty - qtyPerBox * (boxCount - 1);
+                    k.setQuantity(Math.max(remainder, 1));
+                    k.setOriginalQty(k.getQuantity());
+                } else {
+                    k.setQuantity(Math.max(qtyPerBox, 1));
+                    k.setOriginalQty(k.getQuantity());
+                }
                 k.setBoxSeq(seq);
                 // 库区
                 Long areaId = dto.getWarehouseAreaId() != null

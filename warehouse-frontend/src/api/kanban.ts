@@ -13,6 +13,7 @@ export interface Kanban {
   partName: string
   supplierName: string
   quantity: number
+  originalQty?: number  // 箱容量（原始装箱数量）
   boxSeq: number
   warehouseAreaId: number
   warehouseAreaName: string
@@ -97,6 +98,8 @@ export const KanbanStatusText: Record<number, string> = {
   2: '待出库',
   3: '已出库',
   4: '封存',
+  5: '部分转出',
+  6: '已清空',
 }
 
 export const KanbanStatusTagType: Record<number, string> = {
@@ -105,4 +108,6 @@ export const KanbanStatusTagType: Record<number, string> = {
   2: 'warning',
   3: 'danger',
   4: 'info',
+  5: 'warning',
+  6: 'danger',
 }

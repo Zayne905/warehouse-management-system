@@ -30,21 +30,12 @@
         <el-table-column prop="partCode" label="物料编码" width="120" />
         <el-table-column prop="partName" label="物料名称" width="140" />
         <el-table-column prop="unit" label="单位" width="70" />
-        <el-table-column label="可用库存" width="90" align="center">
+        <el-table-column label="可用库存" width="100" align="center">
           <template #default="{ row }">{{ row._stock ?? '-' }}</template>
         </el-table-column>
-        <el-table-column label="计划出库" width="130">
+        <el-table-column label="计划出库数量" width="140">
           <template #default="{ row }">
-            <el-input-number v-model="row.plannedQty" :min="0" :max="row._stock||99999" controls-position="right" size="small" style="width:100%" />
-          </template>
-        </el-table-column>
-        <el-table-column label="包装容量" width="90" align="center">
-          <template #default="{ row }">{{ row.packageCapacity || 1 }}</template>
-        </el-table-column>
-        <el-table-column label="箱数" width="100">
-          <template #default="{ row }">
-            <el-input-number v-model="row.boxCount" :min="0" :max="maxBoxCount(row)" size="small" controls-position="right" style="width:100%"
-              @change="onBoxChange(row)" />
+            <el-input-number v-model="row.plannedQty" :min="1" :max="row._stock||99999" controls-position="right" size="small" style="width:100%" />
           </template>
         </el-table-column>
         <el-table-column label="实出" width="70" align="center">
@@ -112,17 +103,6 @@ onMounted(async () => {
 
 function onSelect(rows: any[]) { selectedRows.value = rows }
 function onPartSelect(rows: any[]) { selParts.value = rows }
-function maxBoxCount(row: any): number {
-  const stock = row._stock || 0
-  const cap = row.packageCapacity || 1
-  return Math.floor(stock / cap)
-}
-function onBoxChange(row: any) {
-  // 箱数不能超过最大可用箱数
-  const max = maxBoxCount(row)
-  if (row.boxCount > max) row.boxCount = max
-  row.plannedQty = (row.boxCount || 0) * (row.packageCapacity || 1)
-}
 function removeRows() {
   const ids = new Set(selectedRows.value.map((r: any) => r.partId))
   details.value = details.value.filter(d => !ids.has(d.partId))
@@ -149,7 +129,7 @@ function addSelectedParts() {
     if (details.value.some(d => d.partId === p.id)) continue
     details.value.push({
       partId: p.id, partCode: p.code, partName: p.name, unit: p.unit,
-      plannedQty: 0, actualQty: 0, boxCount: 0, packageCapacity: p.packageCapacity || 1,
+      plannedQty: 0, actualQty: 0,
       _stock: p._stock || 0
     })
   }
@@ -158,19 +138,19 @@ function addSelectedParts() {
 
 async function doSave() {
   if (details.value.length === 0) { ElMessage.warning('请添加零件'); return }
+  for (const d of details.value) {
+    if (!d.plannedQty || d.plannedQty <= 0) { ElMessage.warning(`${d.partName}: 请输入计划出库数量`); return }
+  }
   try {
     const res = await saveOutboundApi({
       id: form.id, remark: form.remark, customerName: form.customerName,
       details: details.value.map((d, i) => ({
         partId: d.partId, plannedQty: d.plannedQty,
-        boxCount: d.boxCount || 0,
-        unit: d.unit, warehouseAreaId: d.warehouseAreaId, lineNo: i + 1
+        boxCount: 0, unit: d.unit, lineNo: i + 1
       }))
     })
     const o = res.data
-    const kanbanCount = o.pendingKanbans?.length || 0
-    ElMessage.success(`保存成功！系统已自动匹配 ${kanbanCount} 箱待出库，请到详情页按清单扫码出库。`)
-    // 跳转到详情页查看待出库清单
+    ElMessage.success(`保存成功！系统已自动匹配看板待出库，请到详情页扫码出库。`)
     router.push(`/inventory/outbound/detail/${o.id}`)
   } catch { /* */ }
 }

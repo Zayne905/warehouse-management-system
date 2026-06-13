@@ -45,6 +45,10 @@
           <el-icon><Upload /></el-icon>
           <span>出库管理</span>
         </el-menu-item>
+        <el-menu-item index="/inventory/repack">
+          <el-icon><Connection /></el-icon>
+          <span>转包管理</span>
+        </el-menu-item>
       </el-sub-menu>
 
       <el-sub-menu index="system">
@@ -77,6 +81,7 @@ import {
   Download,
   Upload,
   DataAnalysis,
+  Connection,
   Setting,
   User,
   Coin,

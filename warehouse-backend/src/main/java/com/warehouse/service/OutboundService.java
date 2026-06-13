@@ -297,11 +297,11 @@ public class OutboundService {
             BigDecimal needed = detail.getPlannedQty();
             if (needed.compareTo(BigDecimal.ZERO) <= 0) continue;
 
-            // 查询该零件的在库可用看板（FIFO：按入库时间升序）
+            // 查询该零件的在库可用看板（FIFO：按入库时间升序），包括部分转出的看板
             List<Kanban> available = kanbanMapper.selectList(
                     new QueryWrapper<Kanban>()
                             .eq("part_id", detail.getPartId())
-                            .eq("status", Kanban.STATUS_AVAILABLE)
+                            .in("status", Kanban.STATUS_AVAILABLE, Kanban.STATUS_PARTIAL_REPACK)
                             .orderByAsc("create_time", "box_seq"));
 
             // 如果没有在库可用的看板，尝试将待入库看板自动提升为在库可用
@@ -326,16 +326,81 @@ public class OutboundService {
             }
 
             BigDecimal accumulated = BigDecimal.ZERO;
+            BigDecimal remaining = needed;
             for (Kanban kanban : available) {
-                if (accumulated.compareTo(needed) >= 0) break;
+                if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
 
-                // 锁定看板
-                kanban.setStatus(Kanban.STATUS_LOCKED);
-                kanban.setOutboundOrderId(orderId);
-                kanban.setOutboundOrderNo(orderNo);
-                kanbanMapper.updateById(kanban);
+                int kanbanQty = kanban.getQuantity();
+                BigDecimal kanbanQtyBd = BigDecimal.valueOf(kanbanQty);
 
-                accumulated = accumulated.add(BigDecimal.valueOf(kanban.getQuantity()));
+                if (kanbanQtyBd.compareTo(remaining) <= 0) {
+                    // 整箱出：看板数量 ≤ 剩余需要量
+                    kanban.setStatus(Kanban.STATUS_LOCKED);
+                    kanban.setOutboundOrderId(orderId);
+                    kanban.setOutboundOrderNo(orderNo);
+                    kanbanMapper.updateById(kanban);
+                    accumulated = accumulated.add(kanbanQtyBd);
+                    remaining = remaining.subtract(kanbanQtyBd);
+                } else {
+                    // 拆箱：看板数量 > 剩余需要量
+                    int lockQty = remaining.intValue();
+                    int remainderQty = kanbanQty - lockQty;
+
+                    // 生成余量新看板（status=在库可用，继承原看板属性）
+                    Kanban remainderKanban = new Kanban();
+                    remainderKanban.setKanbanNo(kanban.getKanbanNo() + "-OB-" + System.currentTimeMillis() % 100000);
+                    remainderKanban.setInboundOrderId(kanban.getInboundOrderId());
+                    remainderKanban.setInboundOrderNo(kanban.getInboundOrderNo());
+                    remainderKanban.setPartId(kanban.getPartId());
+                    remainderKanban.setPartCode(kanban.getPartCode());
+                    remainderKanban.setPartName(kanban.getPartName());
+                    remainderKanban.setSupplierName(kanban.getSupplierName());
+                    remainderKanban.setQuantity(remainderQty);
+                    remainderKanban.setOriginalQty(kanban.getOriginalQty() != null ? kanban.getOriginalQty() : kanbanQty);
+                    remainderKanban.setBoxSeq(kanban.getBoxSeq() != null ? kanban.getBoxSeq() : 0);
+                    remainderKanban.setWarehouseAreaId(kanban.getWarehouseAreaId());
+                    remainderKanban.setWarehouseAreaName(kanban.getWarehouseAreaName());
+                    remainderKanban.setStatus(Kanban.STATUS_AVAILABLE);
+                    kanbanMapper.insert(remainderKanban);
+
+                    // 自动创建入库单，记录余量看板入库（库存总览同步）
+                    String inboundNo = orderNoGenerator.generate();
+                    InboundOrder ib = new InboundOrder();
+                    ib.setOrderNo(inboundNo);
+                    ib.setSupplierId(0L); ib.setSupplierName("出库拆箱生成");
+                    ib.setOrderNumber(orderNo);
+                    ib.setStatus(2); // 已入库
+                    ib.setRemark("出库单[" + orderNo + "]自动拆箱，余量入库");
+                    inboundOrderMapper.insert(ib);
+
+                    InboundOrderDetail ibDetail = new InboundOrderDetail();
+                    ibDetail.setInboundOrderId(ib.getId());
+                    ibDetail.setPartId(remainderKanban.getPartId());
+                    ibDetail.setPartCode(remainderKanban.getPartCode());
+                    ibDetail.setPartName(remainderKanban.getPartName());
+                    ibDetail.setUnit("件");
+                    ibDetail.setPlannedQty(BigDecimal.valueOf(remainderQty));
+                    ibDetail.setActualQty(BigDecimal.valueOf(remainderQty));
+                    ibDetail.setWarehouseAreaId(remainderKanban.getWarehouseAreaId());
+                    ibDetail.setBoxCount(1);
+                    ibDetail.setLineNo(1);
+                    inboundDetailMapper.insert(ibDetail);
+
+                    // 更新余量看板指向新入库单
+                    remainderKanban.setInboundOrderId(ib.getId());
+                    remainderKanban.setInboundOrderNo(inboundNo);
+                    kanbanMapper.updateById(remainderKanban);
+
+                    // 原看板锁定出库（只出需要的量）
+                    kanban.setQuantity(lockQty);
+                    kanban.setStatus(Kanban.STATUS_LOCKED);
+                    kanban.setOutboundOrderId(orderId);
+                    kanban.setOutboundOrderNo(orderNo);
+                    kanbanMapper.updateById(kanban);
+
+                    accumulated = accumulated.add(BigDecimal.valueOf(lockQty));
+                    remaining = BigDecimal.ZERO;
+                }
             }
 
             if (accumulated.compareTo(needed) < 0) {
@@ -382,6 +447,7 @@ public class OutboundService {
                 k.setQuantity(seq == boxCount - 1
                         ? ibd.getActualQty().intValue() - qtyPerBox * seq  // 最后一个箱子补齐余数
                         : qtyPerBox);
+                k.setOriginalQty(k.getQuantity());
                 k.setBoxSeq(seq);
                 k.setWarehouseAreaId(ibd.getWarehouseAreaId());
                 k.setStatus(Kanban.STATUS_AVAILABLE); // 直接设为在库可用
@@ -453,6 +519,10 @@ public class OutboundService {
                 tip = "该条码已被封存，不能出库";
             } else if (kanban.getStatus() == Kanban.STATUS_PENDING_INBOUND) {
                 tip = "该条码尚未入库，不能出库";
+            } else if (kanban.getStatus() == Kanban.STATUS_PARTIAL_REPACK) {
+                tip = "该条码已部分转出，不可直接出库，请先匹配到出库单";
+            } else if (kanban.getStatus() == Kanban.STATUS_CLEARED) {
+                tip = "该条码已被清空（完全转出），不能出库";
             }
             throw new RuntimeException(tip);
         }
@@ -552,9 +622,9 @@ public class OutboundService {
     // ========== 可用库存 ==========
 
     public BigDecimal getAvailableStock(Long partId) {
-        // 统计status=1（在库可用）的看板数量之和
+        // 统计status=1（在库可用）+ status=5（部分转出）的看板数量之和
         List<Kanban> kanbans = kanbanMapper.selectList(
-                new QueryWrapper<Kanban>().eq("part_id", partId).eq("status", Kanban.STATUS_AVAILABLE));
+                new QueryWrapper<Kanban>().eq("part_id", partId).in("status", Kanban.STATUS_AVAILABLE, Kanban.STATUS_PARTIAL_REPACK));
         if (!kanbans.isEmpty()) {
             return kanbans.stream()
                     .map(k -> BigDecimal.valueOf(k.getQuantity()))

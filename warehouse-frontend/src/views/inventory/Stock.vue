@@ -48,7 +48,16 @@
                 <el-table-column prop="boxSeq" label="箱号" width="60" align="center">
                   <template #default="{ row: k }">C-{{ k.boxSeq }}</template>
                 </el-table-column>
-                <el-table-column prop="quantity" label="箱数量" width="80" align="center" />
+                <el-table-column label="箱容量" width="75" align="center">
+                  <template #default="{ row: k }">{{ k.originalQty ?? k.quantity }}</template>
+                </el-table-column>
+                <el-table-column label="剩余数量" width="85" align="center">
+                  <template #default="{ row: k }">
+                    <span :style="{color: k.quantity < (k.originalQty ?? k.quantity) ? '#e6a23c' : ''}">
+                      {{ k.quantity }}
+                    </span>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="warehouseAreaName" label="库区" width="120" />
                 <el-table-column label="状态" width="90" align="center">
                   <template #default="{ row: k }">
@@ -80,7 +89,18 @@
         <el-table-column prop="partName" label="零件名称" min-width="140" />
         <el-table-column prop="spec" label="规格" width="120" />
         <el-table-column prop="unit" label="单位" width="70" />
-        <el-table-column prop="packageCapacity" label="包装容量" width="90" align="center" />
+        <el-table-column prop="kanbanCount" label="在库箱数" width="85" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.kanbanCount" size="small" effect="plain">{{ row.kanbanCount }}</el-tag>
+            <span v-else class="text-hint">0</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="箱均数量" width="90" align="center">
+          <template #default="{ row }">
+            <span v-if="row.avgQtyPerBox" class="avg-qty">{{ row.avgQtyPerBox }}</span>
+            <span v-else class="text-hint">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="totalStock" label="库存总量" width="110" align="center" sortable="custom">
           <template #default="{ row }">
             <span class="stock-qty">{{ row.totalStock }}</span>

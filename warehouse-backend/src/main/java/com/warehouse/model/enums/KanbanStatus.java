@@ -5,7 +5,9 @@ public enum KanbanStatus {
     AVAILABLE(1, "在库可用"),
     LOCKED(2, "待出库"),
     OUTBOUND(3, "已出库"),
-    BLOCKED(4, "封存");
+    BLOCKED(4, "封存"),
+    PARTIAL_REPACK(5, "部分转出"),
+    CLEARED(6, "已清空");
 
     private final int code;
     private final String label;
