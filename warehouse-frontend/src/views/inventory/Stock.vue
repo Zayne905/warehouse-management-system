@@ -139,7 +139,7 @@
           <template #default="{ row }">
             <div class="area-tags">
               <el-tag v-for="a in row.areaStocks" :key="a.areaId" size="small" effect="plain" style="margin:2px 4px 2px 0">
-                {{ a.areaName }}: {{ a.quantity }}
+                {{ a.areaName }}
               </el-tag>
             </div>
           </template>
