@@ -1,0 +1,58 @@
+# ====================
+# Java / Maven
+# ====================
+target/
+*.class
+*.jar
+*.war
+*.log
+!.mvn/wrapper/maven-wrapper.jar
+warehouse-backend/warehouse_db_backup_*.sql
+warehouse-backend/warehouse_db_before_full_reset_*.sql
+
+# ====================
+# Node / Vue / Vite
+# ====================
+node_modules/
+dist/
+.vite/
+*.local
+*.tsbuildinfo
+warehouse-frontend/.npm-cache/
+warehouse-frontend/vite.config.js
+warehouse-frontend/vite.config.d.ts
+
+# ====================
+# IDE
+# ====================
+.idea/
+*.iml
+.vscode/
+.claude/
+.playwright-mcp/
+*.swp
+*.swo
+*~
+
+# ====================
+# OS
+# ====================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ====================
+# Misc
+# ====================
+*.tmp
+*.bak
+.env
+.env.*
+warehouse.zip
+
+# Android / Gradle
+.gradle/
+**/build/
+warehouse-scanner/.tools/
+warehouse-scanner/local.properties
+*.apk

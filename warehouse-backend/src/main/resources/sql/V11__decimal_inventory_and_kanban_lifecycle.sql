@@ -1,0 +1,6 @@
+ALTER TABLE inbound_order_detail
+    MODIFY COLUMN box_count DECIMAL(10,2) DEFAULT 0 COMMENT '箱数，支持小数';
+
+ALTER TABLE kanban
+    MODIFY COLUMN quantity DECIMAL(12,2) DEFAULT 0 COMMENT '本箱数量',
+    MODIFY COLUMN original_qty DECIMAL(12,2) DEFAULT NULL COMMENT '原始装箱数量';
