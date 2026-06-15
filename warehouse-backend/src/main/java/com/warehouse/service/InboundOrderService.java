@@ -403,16 +403,21 @@ public class InboundOrderService {
             detail.setPartName(part.getName());
             detail.setUnit(dto.getUnit() != null ? dto.getUnit() : part.getUnit());
 
-            // 数量与箱数可由前端双向换算；优先保留用户输入的入库数量。
+            /**
+             * 数量与箱数可由前端双向换算；优先保留用户输入的入库数量。
+             */
             int capacity = part.getPackageCapacity() != null ? part.getPackageCapacity() : 1;
             BigDecimal plannedQty = dto.getPlannedQty() != null
                     ? dto.getPlannedQty()
                     : BigDecimal.ZERO;
+            // ***优先保存前端明确输入的入库数量。
             BigDecimal boxCount = dto.getBoxCount();
+            // ***只输入数量时，后端补算箱数。
             if (boxCount == null && plannedQty.compareTo(BigDecimal.ZERO) > 0) {
                 boxCount = plannedQty.divide(BigDecimal.valueOf(capacity), 2, RoundingMode.HALF_UP);
             }
             if (boxCount == null) boxCount = BigDecimal.ZERO;
+            // ***只输入箱数时，后端补算计划入库数量。
             if (plannedQty.compareTo(BigDecimal.ZERO) <= 0 && boxCount.compareTo(BigDecimal.ZERO) > 0) {
                 plannedQty = BigDecimal.valueOf(capacity).multiply(boxCount);
             }

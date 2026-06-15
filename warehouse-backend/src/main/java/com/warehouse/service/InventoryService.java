@@ -52,8 +52,10 @@ public class InventoryService {
 
         // 3. 查询所有仍在仓库中的看板。封存只影响可用性，不应让零件从库存总览消失。
         QueryWrapper<Kanban> inventoryQuery = new QueryWrapper<Kanban>()
+                // ***待入库和已出库看板不计入当前库存。
                 .in("status", Kanban.STATUS_AVAILABLE, Kanban.STATUS_BLOCKED, Kanban.STATUS_PARTIAL_REPACK)
                 .orderByAsc("part_code");
+        // ***库存页面可按库区筛选。
         if (warehouseAreaId != null) inventoryQuery.eq("warehouse_area_id", warehouseAreaId);
         List<Kanban> inventoryKanbans = kanbanMapper.selectList(inventoryQuery);
 
@@ -65,7 +67,9 @@ public class InventoryService {
 
         for (Kanban k : inventoryKanbans) {
             Long pid = k.getPartId();
+            // ***看板数量即在库箱数，包括封存箱。
             partBoxCount.merge(pid, 1, Integer::sum);
+            // ***同一零件所有有效看板的当前数量求和。
             partTotalQty.merge(pid, k.getQuantity() != null ? k.getQuantity() : BigDecimal.ZERO, BigDecimal::add);
 
             Long areaId = k.getWarehouseAreaId();

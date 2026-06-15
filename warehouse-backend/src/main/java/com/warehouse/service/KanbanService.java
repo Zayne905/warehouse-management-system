@@ -61,6 +61,9 @@ public class KanbanService {
         return String.format("R-%s-%s-%sC-%d", dateStr, order.getOrderNo(), part.getCode(), boxSeq);
     }
 
+    /**
+     *入库看板生成和尾箱容量
+     */
     @Transactional
     public List<Kanban> generateForOrder(Long orderId, List<InboundDetailDTO> details) {
         InboundOrder order = inboundOrderMapper.selectById(orderId);
@@ -78,10 +81,17 @@ public class KanbanService {
 
             BigDecimal capacity = BigDecimal.valueOf(part.getPackageCapacity() != null ? part.getPackageCapacity() : 1);
             BigDecimal totalQty = dto.getPlannedQty() != null ? dto.getPlannedQty() : capacity.multiply(boxCount);
+            // ***向上取整：例如1.5箱需要打印和创建2个看板。
             int labelCount = boxCount.setScale(0, RoundingMode.CEILING).intValue();
             BigDecimal remaining = totalQty;
 
             for (int seq = 0; seq < labelCount && remaining.compareTo(BigDecimal.ZERO) > 0; seq++) {
+                /**
+                 * 前面的箱取完整容量，尾箱只取剩余数量。
+                 * 举例：包装容量为50、入库75件时，结果为：
+                 * 看板1：quantity=50，originalQty=50，显示50/1箱
+                 * 看板2：quantity=25，originalQty=50，显示25/0.5箱
+                 */
                 BigDecimal boxQty = remaining.min(capacity);
                 Kanban kanban = new Kanban();
                 kanban.setKanbanNo(generateKanbanNo(order, part, seq));
@@ -91,8 +101,8 @@ public class KanbanService {
                 kanban.setPartCode(part.getCode());
                 kanban.setPartName(part.getName());
                 kanban.setSupplierName(order.getSupplierName());
-                kanban.setQuantity(boxQty);
-                kanban.setOriginalQty(capacity);
+                kanban.setQuantity(boxQty);// ***当前箱实际数量
+                kanban.setOriginalQty(capacity);// ***最大箱容量
                 kanban.setBoxSeq(seq);
                 Long areaId = dto.getWarehouseAreaId() != null ? dto.getWarehouseAreaId() : part.getWarehouseAreaId();
                 kanban.setWarehouseAreaId(areaId);
@@ -100,6 +110,7 @@ public class KanbanService {
                     WarehouseArea area = warehouseAreaService.getById(areaId);
                     kanban.setWarehouseAreaName(area != null ? area.getName() : null);
                 }
+                // ***创建单据时只生成待入库看板，不直接计入库存。
                 kanban.setStatus(Kanban.STATUS_PENDING_INBOUND);
                 kanbanMapper.insert(kanban);
                 result.add(kanban);
@@ -175,6 +186,9 @@ public class KanbanService {
         return value == null ? "" : value.toString().trim();
     }
 
+    /**
+     *看板生命周期
+     */
     public Map<String, Object> getLifecycle(String kanbanNo) {
         Kanban kanban = findRequired(kanbanNo);
         Part part = partService.getById(kanban.getPartId());
