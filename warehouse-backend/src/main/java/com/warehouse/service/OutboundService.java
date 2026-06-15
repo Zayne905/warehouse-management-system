@@ -573,7 +573,7 @@ public class OutboundService {
         // 7. 重算出库单状态
         recalculateStatus(effectiveOrderId);
 
-        // 8. 构建返回
+        // 8. 构建返回（始终包含plannedQty/actualQty，即使为0，避免Android端反序列化失败）
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
         result.put("kanbanNo", kanban.getKanbanNo());
@@ -583,11 +583,15 @@ public class OutboundService {
         result.put("warehouseAreaName", scan.getWarehouseAreaName());
 
         // 出库单明细进度（兼容 Scanner 端）
+        double plannedQty = 0.0;
+        double actualQty = 0.0;
         if (effectiveOrderId != null && !details.isEmpty()) {
             OutboundOrderDetail d = details.get(0);
-            result.put("plannedQty", d.getPlannedQty().doubleValue());
-            result.put("actualQty", d.getActualQty().doubleValue());
+            plannedQty = d.getPlannedQty() != null ? d.getPlannedQty().doubleValue() : 0.0;
+            actualQty = d.getActualQty() != null ? d.getActualQty().doubleValue() : 0.0;
         }
+        result.put("plannedQty", plannedQty);
+        result.put("actualQty", actualQty);
 
         // 进度信息
         long remainingLocked = kanbanMapper.selectCount(

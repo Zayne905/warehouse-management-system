@@ -136,7 +136,7 @@ fun TraceScreen(
     // 相机扫码
     if (state.showCamera) {
         CameraScanDialog(
-            onBarcodeScanned = { result -> viewModel.traceByKanban(result) },
+            onBarcodeScanned = { result -> viewModel.onBarcodeScanned(result) },
             onDismiss = { viewModel.hideCamera() }
         )
     }

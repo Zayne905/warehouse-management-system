@@ -53,6 +53,9 @@ interface ApiService {
     @POST("repack/add-detail")
     suspend fun repackAddDetail(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<RepackOrderData>
 
+    @POST("repack/breakdown-generate")
+    suspend fun repackBreakdownGenerate(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<RepackOrderData>
+
     @POST("repack/save")
     suspend fun repackCreate(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<RepackOrderData>
 

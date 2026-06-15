@@ -26,8 +26,10 @@ class BlockUnblockViewModel : ViewModel() {
         _state.value = _state.value.copy(showCamera = false)
         try {
             val qr = gson.fromJson(trimmed, KanbanQrData::class.java)
-            if (qr.kanbanNo.isNotBlank() && qr.partCode.isNotBlank()) {
-                toggleBlock(qr.kanbanNo, qr.partName)
+            val kanbanNo = qr.kanbanNo ?: ""
+            val partCode = qr.partCode ?: ""
+            if (kanbanNo.isNotBlank() && partCode.isNotBlank()) {
+                toggleBlock(kanbanNo, qr.partName ?: "")
                 return
             }
         } catch (_: Exception) { }

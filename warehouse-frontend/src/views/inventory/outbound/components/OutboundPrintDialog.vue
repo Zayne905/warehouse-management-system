@@ -102,13 +102,9 @@ watch(() => props.visible, async (val) => {
       try {
         await QRCode.toCanvas(canvas, JSON.stringify({
           kanbanNo: k.kanbanNo,
-          partCode: k.partCode,
-          partName: k.partName,
-          supplierName: k.supplierName,
-          quantity: k.quantity,
-          warehouseArea: k.warehouseAreaName,
           inboundOrderNo: k.inboundOrderNo,
-          boxSeq: k.boxSeq,
+          partCode: k.partCode,
+          quantity: k.quantity,
         }), { width: 130, margin: 1, color: { dark: '#000', light: '#fff' } })
       } catch { /* ignore */ }
     }

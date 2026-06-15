@@ -197,15 +197,12 @@ watch(() => props.visible, async (val) => {
       for (const k of kanbans.value) {
         const canvas = partQrRefs.value.get(k.id)
         if (canvas) {
+          // QR数据精简：仅保留扫码必需的4个字段，降低码密度确保手机可扫
           await QRCode.toCanvas(canvas, JSON.stringify({
             kanbanNo: k.kanbanNo,
-            partCode: k.partCode,
-            partName: k.partName,
-            supplierName: k.supplierName,
-            quantity: k.quantity,
-            warehouseArea: k.warehouseAreaName,
             inboundOrderNo: k.inboundOrderNo,
-            boxSeq: k.boxSeq,
+            partCode: k.partCode,
+            quantity: k.quantity,
           }), { width: 130, margin: 1, color: { dark: '#000', light: '#fff' } })
         }
       }

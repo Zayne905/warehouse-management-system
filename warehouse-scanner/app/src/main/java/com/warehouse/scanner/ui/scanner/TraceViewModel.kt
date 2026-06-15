@@ -1,7 +1,9 @@
 package com.warehouse.scanner.ui.scanner
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
 import com.warehouse.scanner.model.TraceData
 import com.warehouse.scanner.network.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,11 +23,31 @@ class TraceViewModel : ViewModel() {
 
     private val _state = MutableStateFlow(TraceState())
     val state: StateFlow<TraceState> = _state
+    private val gson = Gson()
 
     fun showCamera() { _state.value = _state.value.copy(showCamera = true) }
     fun hideCamera() { _state.value = _state.value.copy(showCamera = false) }
 
-    fun traceByKanban(kanbanNo: String) {
+    /** 扫码回调 — 自动识别看板JSON或纯文本看板号 */
+    fun onBarcodeScanned(rawText: String) {
+        val trimmed = rawText.trim()
+        Log.d("TraceScanner", "扫码原始内容: $trimmed")
+
+        val kanbanNo = try {
+            val qr = gson.fromJson(trimmed, KanbanQrData::class.java)
+            (qr.kanbanNo ?: "").ifBlank { null }
+        } catch (_: Exception) { null }
+
+        if (kanbanNo != null) {
+            Log.d("TraceScanner", "从JSON提取看板号: $kanbanNo")
+            traceByKanban(kanbanNo)
+        } else {
+            Log.d("TraceScanner", "纯文本看板号: $trimmed")
+            traceByKanban(trimmed)
+        }
+    }
+
+    private fun traceByKanban(kanbanNo: String) {
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, message = "追溯中...", showCamera = false, error = false)
             try {

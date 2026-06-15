@@ -17,9 +17,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @Composable
 fun OutboundScannerScreen(
     onBack: () -> Unit,
-    viewModel: OutboundScannerViewModel = viewModel()
+    viewModel: ScannerViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
+
+    // 确保初始化为出库模式
+    LaunchedEffect(Unit) {
+        if (viewModel.state.value.mode != ScanMode.OUTBOUND) {
+            viewModel.toggleMode()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -45,7 +52,7 @@ fun OutboundScannerScreen(
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.QrCodeScanner, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Default.QrCodeScanner, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(12.dp))
                         Text("扫描看板标签二维码", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text("扫箱码即出库，FIFO自动选最早入库的箱", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -99,6 +106,9 @@ fun OutboundScannerScreen(
     }
 
     if (state.showCamera) {
-        QrScanDialog(onScanned = { viewModel.onQrScanned(it) }, onDismiss = { viewModel.hideCamera() })
+        QrScanDialog(
+            onScanned = { viewModel.onQrScanned(it) },
+            onDismiss = { viewModel.hideCamera() }
+        )
     }
 }

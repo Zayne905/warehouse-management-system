@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Back, Search, Printer } from '@element-plus/icons-vue'
@@ -134,6 +134,10 @@ const scans = ref<any[]>([])
 const pendingKanbans = ref<any[]>([])
 const kanbanQrRefs = ref<Map<number, HTMLCanvasElement>>(new Map())
 
+// 轮询定时器：安卓扫码出库后自动刷新进度
+let pollTimer: ReturnType<typeof setInterval> | null = null
+const POLL_INTERVAL = 3000 // 3秒轮询一次
+
 function setKanbanQrRef(id: number, el: any) {
   if (el) kanbanQrRefs.value.set(id, el)
 }
@@ -149,13 +153,9 @@ async function renderKanbanQRCodes(kbList: any[]) {
       try {
         await QRCode.toCanvas(canvas, JSON.stringify({
           kanbanNo: k.kanbanNo,
-          partCode: k.partCode,
-          partName: k.partName,
-          supplierName: k.supplierName,
-          quantity: k.quantity,
-          warehouseArea: k.warehouseAreaName,
           inboundOrderNo: k.inboundOrderNo,
-          boxSeq: k.boxSeq,
+          partCode: k.partCode,
+          quantity: k.quantity,
         }), { width: 100, margin: 1, color: { dark: '#000', light: '#fff' } })
       } catch { /* ignore */ }
     }
@@ -194,7 +194,51 @@ async function loadData() {
   } catch { /* */ }
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  startPolling()
+})
+
+onUnmounted(() => {
+  stopPolling()
+})
+
+/** 启动轮询：订单未完成时定时刷新数据（安卓扫码出库后实时更新进度） */
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(async () => {
+    // 订单已完成或已作废则停止轮询
+    if (scanAllDone.value || order.value.status === 2 || order.value.status === 3) {
+      stopPolling()
+      return
+    }
+    try {
+      const res = await getOutboundDetailApi(Number(route.params.id))
+      const o = res.data
+      // 增量更新：仅当看板数量或扫描记录变化时才刷新DOM
+      const newPendingLen = (o.pendingKanbans || []).length
+      const newScansLen = (o.scans || []).length
+      if (newPendingLen !== pendingKanbans.value.length || newScansLen !== scans.value.length) {
+        order.value = o
+        scans.value = o.scans || []
+        pendingKanbans.value = o.pendingKanbans || []
+        outboundCount.value = o.outboundCount || 0
+        totalKanbans.value = o.totalKanbans || 0
+        if (o.status === 2 || (totalKanbans.value > 0 && newPendingLen === 0)) {
+          scanAllDone.value = true
+          stopPolling()
+        }
+      }
+    } catch { /* 静默失败，下次轮询重试 */ }
+  }, POLL_INTERVAL)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
 
 function pendingRowClass({ row }: { row: any }) {
   // 如果看板号在已扫描记录中，标记为已出库
