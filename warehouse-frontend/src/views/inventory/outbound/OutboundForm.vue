@@ -11,7 +11,9 @@
           </el-col>
         </el-row>
         <el-form-item label="客户">
-          <el-input v-model="form.customerName" placeholder="客户名称" style="width:240px" />
+          <el-select v-model="form.customerName" placeholder="请选择客户" clearable style="width:240px">
+            <el-option v-for="c in customerList" :key="c.id" :label="c.name" :value="c.name" />
+          </el-select>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="备注信息" />
@@ -55,8 +57,20 @@
     </div>
 
     <!-- 零件选择器 -->
-    <el-dialog v-model="showPartSelector" title="选择零件（仅显示有库存的零件）" width="600px">
-      <el-table :data="partList" border stripe @selection-change="onPartSelect">
+    <el-dialog v-model="showPartSelector" title="选择零件（仅显示有库存的零件）" width="650px">
+      <div style="margin-bottom: 12px;">
+        <el-input
+          v-model="partSearchKeyword"
+          placeholder="搜索物料编码或名称"
+          clearable
+          style="width: 260px"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+      </div>
+      <el-table :data="filteredPartList" border stripe max-height="400" @selection-change="onPartSelect">
         <el-table-column type="selection" width="45" />
         <el-table-column prop="code" label="编码" width="120" />
         <el-table-column prop="name" label="名称" width="140" />
@@ -65,7 +79,9 @@
           <template #default="{ row }">{{ row._stock }}</template>
         </el-table-column>
       </el-table>
-      <div v-if="partList.length === 0" style="text-align:center;padding:20px;color:#909399">暂无有库存的零件</div>
+      <div v-if="filteredPartList.length === 0" style="text-align:center;padding:20px;color:#909399">
+        {{ partSearchKeyword ? '无匹配零件' : '暂无有库存的零件' }}
+      </div>
       <template #footer>
         <el-button @click="showPartSelector = false">取消</el-button>
         <el-button type="primary" @click="addSelectedParts" :disabled="selParts.length===0">添加选中 ({{ selParts.length }})</el-button>
@@ -75,21 +91,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, Search } from '@element-plus/icons-vue'
 import { getPartListApi } from '@/api/part'
 import { saveOutboundApi, getOutboundDetailApi, getAvailableStockApi } from '@/api/outbound'
+import { getCustomerListApi } from '@/api/customer'
+import type { Customer } from '@/types/inbound'
 
 const router = useRouter(); const route = useRoute()
-const isEdit = ref(false); const showPartSelector = ref(false)
+const isEdit = ref(false); const showPartSelector = ref(false); const partSearchKeyword = ref('')
 const selectedRows = ref<any[]>([]); const selParts = ref<any[]>([])
+const customerList = ref<Customer[]>([])
 const form = reactive({ id: undefined as number|undefined, orderNo: '', remark: '', customerName: '' })
 const details = ref<any[]>([])
 const partList = ref<any[]>([])
 
+const filteredPartList = computed(() => {
+  const kw = partSearchKeyword.value.trim().toLowerCase()
+  if (!kw) return partList.value
+  return partList.value.filter((p: any) =>
+    (p.code && p.code.toLowerCase().includes(kw)) ||
+    (p.name && p.name.toLowerCase().includes(kw))
+  )
+})
+
 onMounted(async () => {
+  // 加载客户列表
+  try {
+    const res = await getCustomerListApi()
+    customerList.value = res.data || []
+  } catch { /* */ }
   const editId = route.params.id
   if (editId) {
     isEdit.value = true
@@ -109,6 +142,7 @@ function removeRows() {
 }
 
 async function openPartSelector() {
+  partSearchKeyword.value = ''
   showPartSelector.value = true
   try {
     const res = await getPartListApi()
@@ -150,7 +184,7 @@ async function doSave() {
       }))
     })
     const o = res.data
-    ElMessage.success(`保存成功！系统已自动匹配看板待出库，请到详情页扫码出库。`)
+    ElMessage.success(`保存成功！请在详情页手动匹配看板或直接扫码出库。`)
     router.push(`/inventory/outbound/detail/${o.id}`)
   } catch { /* */ }
 }

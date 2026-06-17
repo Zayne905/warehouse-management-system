@@ -17,16 +17,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @Composable
 fun OutboundScannerScreen(
     onBack: () -> Unit,
-    viewModel: ScannerViewModel = viewModel()
+    outboundVM: OutboundScannerViewModel = viewModel()
 ) {
-    val state by viewModel.state.collectAsState()
-
-    // 确保初始化为出库模式
-    LaunchedEffect(Unit) {
-        if (viewModel.state.value.mode != ScanMode.OUTBOUND) {
-            viewModel.toggleMode()
-        }
-    }
+    val state by outboundVM.state.collectAsState()
 
     Scaffold(
         topBar = {
@@ -38,7 +31,7 @@ fun OutboundScannerScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.showCamera() }) {
+                    IconButton(onClick = { outboundVM.showCamera() }) {
                         Icon(Icons.Default.QrCodeScanner, "扫码")
                     }
                 }
@@ -49,15 +42,67 @@ fun OutboundScannerScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // 出库单选择区域
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("选择出库单", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = state.orderNoInput,
+                                onValueChange = { outboundVM.updateOrderNo(it) },
+                                label = { Text("出库单号") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                enabled = !state.loadingOrder
+                            )
+                            Button(
+                                onClick = { outboundVM.queryOrder() },
+                                enabled = !state.loadingOrder && state.orderNoInput.isNotBlank()
+                            ) { Text("查询") }
+                        }
+                        // 已选择的出库单信息
+                        if (state.selectedOrderNo != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("当前: ${state.selectedOrderNo}", fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodyMedium)
+                                        state.orderInfo?.let {
+                                            Text(it, style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        }
+                                    }
+                                    TextButton(onClick = { outboundVM.clearOrder() }) { Text("清除") }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 扫码区域
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.QrCodeScanner, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(12.dp))
                         Text("扫描看板标签二维码", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("扫箱码即出库，FIFO自动选最早入库的箱", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (state.orderId != null) "已选单，可扫任意在库看板出库" else "请先查询出库单，再扫描看板出库",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { viewModel.showCamera() }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                        Button(onClick = { outboundVM.showCamera() }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                             Icon(Icons.Default.QrCodeScanner, null); Spacer(modifier = Modifier.width(8.dp))
                             Text("打开扫码", style = MaterialTheme.typography.titleMedium)
                         }
@@ -96,9 +141,34 @@ fun OutboundScannerScreen(
 
             if (state.needConfirm) {
                 item {
-                    Button(onClick = viewModel::confirmContinue, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                    Button(onClick = outboundVM::confirmContinue, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                         Icon(Icons.Default.CheckCircle, null); Spacer(modifier = Modifier.width(8.dp))
                         Text("确认，继续出库", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+
+            // 非FIFO确认提示
+            if (state.needsConfirmNonFifo) {
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("⚠️ 非FIFO出库确认", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(state.message, style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                OutlinedButton(
+                                    onClick = { outboundVM.cancelNonFifoScan() },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("取消") }
+                                Button(
+                                    onClick = { outboundVM.confirmNonFifoScan() },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) { Text("确认出库") }
+                            }
+                        }
                     }
                 }
             }
@@ -107,8 +177,8 @@ fun OutboundScannerScreen(
 
     if (state.showCamera) {
         QrScanDialog(
-            onScanned = { viewModel.onQrScanned(it) },
-            onDismiss = { viewModel.hideCamera() }
+            onScanned = { outboundVM.onQrScanned(it) },
+            onDismiss = { outboundVM.hideCamera() }
         )
     }
 }

@@ -95,8 +95,12 @@ public class OutboundService {
             BigDecimal totalQty = details.stream()
                     .map(d -> d.getPlannedQty() != null ? d.getPlannedQty() : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal totalActualQty = details.stream()
+                    .map(d -> d.getActualQty() != null ? d.getActualQty() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
             m.put("partCount", partCount);
             m.put("totalQty", totalQty);
+            m.put("totalActualQty", totalActualQty);
             // 进度
             Long outboundCount = scanMapper.selectCount(
                     new QueryWrapper<OutboundScan>().eq("outbound_order_id", o.getId()));
@@ -104,6 +108,15 @@ public class OutboundService {
                     new QueryWrapper<Kanban>().eq("outbound_order_id", o.getId()));
             m.put("outboundCount", outboundCount);
             m.put("totalKanbans", totalKanbans);
+            // 零件级完成统计
+            long completedParts = details.stream()
+                .filter(d -> {
+                    BigDecimal a = d.getActualQty() != null ? d.getActualQty() : BigDecimal.ZERO;
+                    BigDecimal p = d.getPlannedQty() != null ? d.getPlannedQty() : BigDecimal.ZERO;
+                    return a.compareTo(p) >= 0;
+                }).count();
+            m.put("completedParts", completedParts);
+            m.put("totalParts", (long) details.size());
             // 供应商（从看板自动聚合，去重）
             List<Kanban> allKanbans = kanbanMapper.selectList(
                     new QueryWrapper<Kanban>().eq("outbound_order_id", o.getId()));
@@ -164,9 +177,24 @@ public class OutboundService {
             dm.put("warehouseAreaId", d.getWarehouseAreaId());
             dm.put("lineNo", d.getLineNo());
             dm.put("availableStock", getAvailableStock(d.getPartId()));
+            // 零件级完成状态
+            BigDecimal planned = d.getPlannedQty() != null ? d.getPlannedQty() : BigDecimal.ZERO;
+            BigDecimal actual = d.getActualQty() != null ? d.getActualQty() : BigDecimal.ZERO;
+            double rate = planned.compareTo(BigDecimal.ZERO) > 0
+                ? actual.divide(planned, 4, RoundingMode.HALF_UP).doubleValue()
+                : (actual.compareTo(BigDecimal.ZERO) > 0 ? 1.0 : 0.0);
+            dm.put("completionRate", rate);
+            dm.put("completionStatus", actual.compareTo(planned) >= 0 ? "done"
+                : (actual.compareTo(BigDecimal.ZERO) > 0 ? "partial" : "none"));
             return dm;
         }).collect(Collectors.toList());
         m.put("details", detailList);
+
+        // 零件级完成汇总
+        long completedParts = detailList.stream()
+            .filter(d -> "done".equals(d.get("completionStatus"))).count();
+        m.put("completedPartCount", completedParts);
+        m.put("totalPartCount", (long) detailList.size());
 
         // 待出库清单（锁定的看板）
         List<Kanban> pendingKanbans = kanbanMapper.selectList(
@@ -201,6 +229,39 @@ public class OutboundService {
         return m;
     }
 
+    /**
+     * 按单号查询出库单（供 Android 扫码端选择出库单时使用）
+     */
+    public Map<String, Object> getDetailByOrderNo(String orderNo) {
+        OutboundOrder order = orderMapper.selectOne(
+                new QueryWrapper<OutboundOrder>().eq("order_no", orderNo));
+        if (order == null) throw new RuntimeException("出库单不存在: " + orderNo);
+        Long id = order.getId();
+
+        Map<String, Object> m = new HashMap<>();
+        m.put("id", order.getId());
+        m.put("orderNo", order.getOrderNo());
+        m.put("status", order.getStatus());
+        m.put("statusText", getStatusText(order.getStatus()));
+        m.put("customerName", order.getCustomerName());
+        m.put("remark", order.getRemark());
+
+        // 零件清单
+        List<OutboundOrderDetail> details = detailMapper.selectList(
+                new QueryWrapper<OutboundOrderDetail>().eq("outbound_order_id", id).orderByAsc("line_no"));
+        List<Map<String, Object>> partList = details.stream().map(d -> {
+            Map<String, Object> dm = new HashMap<>();
+            dm.put("partId", d.getPartId());
+            dm.put("partCode", d.getPartCode());
+            dm.put("partName", d.getPartName());
+            dm.put("plannedQty", d.getPlannedQty());
+            return dm;
+        }).collect(Collectors.toList());
+        m.put("parts", partList);
+        m.put("partCount", details.size());
+        return m;
+    }
+
     // ========== 保存出库单（含自动匹配） ==========
 
     @Transactional
@@ -221,8 +282,7 @@ public class OutboundService {
         List<Map<String, Object>> details = (List<Map<String, Object>>) dto.get("details");
         if (details != null) {
             saveDetails(order.getId(), details);
-            // 自动FIFO匹配看板
-            autoMatchKanbans(order.getId());
+            // 不再自动匹配：用户可在详情页手动触发FIFO匹配，或直接非FIFO扫码出库
         }
 
         return getDetail(order.getId());
@@ -237,9 +297,6 @@ public class OutboundService {
             throw new RuntimeException("已出库或已作废的出库单不允许修改");
         }
 
-        // 释放旧的锁定看板（已出库的不释放）
-        releaseLockedKanbans(id);
-
         // 删除旧明细
         detailMapper.delete(new QueryWrapper<OutboundOrderDetail>().eq("outbound_order_id", id));
 
@@ -251,8 +308,7 @@ public class OutboundService {
         List<Map<String, Object>> details = (List<Map<String, Object>>) dto.get("details");
         if (details != null) {
             saveDetails(id, details);
-            // 重新FIFO匹配
-            autoMatchKanbans(id);
+            // 不再自动重新匹配，用户可手动触发或直接非FIFO扫码
         }
 
         return getDetail(id);
@@ -342,64 +398,13 @@ public class OutboundService {
                     accumulated = accumulated.add(kanbanQtyBd);
                     remaining = remaining.subtract(kanbanQtyBd);
                 } else {
-                    // 拆箱：看板数量 > 剩余需要量
-                    BigDecimal lockQty = remaining;
-                    BigDecimal remainderQty = kanbanQtyBd.subtract(lockQty);
-
-                    // 生成余量新看板（status=在库可用，继承原看板属性）
-                    Kanban remainderKanban = new Kanban();
-                    remainderKanban.setKanbanNo(kanban.getKanbanNo() + "-OB-" + System.currentTimeMillis() % 100000);
-                    remainderKanban.setInboundOrderId(kanban.getInboundOrderId());
-                    remainderKanban.setInboundOrderNo(kanban.getInboundOrderNo());
-                    remainderKanban.setPartId(kanban.getPartId());
-                    remainderKanban.setPartCode(kanban.getPartCode());
-                    remainderKanban.setPartName(kanban.getPartName());
-                    remainderKanban.setSupplierName(kanban.getSupplierName());
-                    remainderKanban.setQuantity(remainderQty);
-                    remainderKanban.setOriginalQty(kanban.getOriginalQty() != null ? kanban.getOriginalQty() : kanbanQtyBd);
-                    remainderKanban.setBoxSeq(kanban.getBoxSeq() != null ? kanban.getBoxSeq() : 0);
-                    remainderKanban.setWarehouseAreaId(kanban.getWarehouseAreaId());
-                    remainderKanban.setWarehouseAreaName(kanban.getWarehouseAreaName());
-                    remainderKanban.setStatus(Kanban.STATUS_AVAILABLE);
-                    kanbanMapper.insert(remainderKanban);
-
-                    // 自动创建入库单，记录余量看板入库（库存总览同步）
-                    String inboundNo = orderNoGenerator.generate();
-                    InboundOrder ib = new InboundOrder();
-                    ib.setOrderNo(inboundNo);
-                    ib.setSupplierId(0L); ib.setSupplierName("出库拆箱生成");
-                    ib.setOrderNumber(orderNo);
-                    ib.setStatus(2); // 已入库
-                    ib.setRemark("出库单[" + orderNo + "]自动拆箱，余量入库");
-                    inboundOrderMapper.insert(ib);
-
-                    InboundOrderDetail ibDetail = new InboundOrderDetail();
-                    ibDetail.setInboundOrderId(ib.getId());
-                    ibDetail.setPartId(remainderKanban.getPartId());
-                    ibDetail.setPartCode(remainderKanban.getPartCode());
-                    ibDetail.setPartName(remainderKanban.getPartName());
-                    ibDetail.setUnit("件");
-                    ibDetail.setPlannedQty(remainderQty);
-                    ibDetail.setActualQty(remainderQty);
-                    ibDetail.setWarehouseAreaId(remainderKanban.getWarehouseAreaId());
-                    ibDetail.setBoxCount(BigDecimal.ONE);
-                    ibDetail.setLineNo(1);
-                    inboundDetailMapper.insert(ibDetail);
-
-                    // 更新余量看板指向新入库单
-                    remainderKanban.setInboundOrderId(ib.getId());
-                    remainderKanban.setInboundOrderNo(inboundNo);
-                    kanbanMapper.updateById(remainderKanban);
-
-                    // 原看板锁定出库（只出需要的量）
-                    kanban.setQuantity(lockQty);
+                    // 看板数量 > 剩余需要量：锁定整箱，拆箱在扫码出库时由溢出逻辑处理
                     kanban.setStatus(Kanban.STATUS_LOCKED);
                     kanban.setOutboundOrderId(orderId);
                     kanban.setOutboundOrderNo(orderNo);
                     kanbanMapper.updateById(kanban);
-
-                    accumulated = accumulated.add(lockQty);
-                    remaining = BigDecimal.ZERO;
+                    accumulated = accumulated.add(kanbanQtyBd);
+                    remaining = remaining.subtract(kanbanQtyBd);
                 }
             }
 
@@ -506,90 +511,227 @@ public class OutboundService {
     // ========== 扫码出库 ==========
 
     @Transactional
-    public Map<String, Object> scanOutbound(Long orderId, String kanbanNo, Integer operatorId) {
+    public Map<String, Object> scanOutbound(Long orderId, String kanbanNo, Integer operatorId, boolean confirmNonFifo) {
         // 1. 查找看板
         Kanban kanban = kanbanMapper.selectOne(
                 new QueryWrapper<Kanban>().eq("kanban_no", kanbanNo));
         if (kanban == null) throw new RuntimeException("看板不存在: " + kanbanNo);
 
-        // 2. 校验：必须在当前出库单的待出库清单中（状态=锁定且归属当前订单）
-        if (kanban.getStatus() != Kanban.STATUS_LOCKED) {
-            String tip = "该条码当前状态为" + kanban.getStatusText() + "，无法出库";
-            if (kanban.getStatus() == Kanban.STATUS_AVAILABLE) {
-                tip = "该条码尚未被任何出库单匹配，请先创建出库单";
-            } else if (kanban.getStatus() == Kanban.STATUS_OUTBOUND) {
-                tip = "该条码已出库，不能重复出库";
-            } else if (kanban.getStatus() == Kanban.STATUS_BLOCKED) {
-                tip = "该条码已被封存，不能出库";
-            } else if (kanban.getStatus() == Kanban.STATUS_PENDING_INBOUND) {
-                tip = "该条码尚未入库，不能出库";
-            } else if (kanban.getStatus() == Kanban.STATUS_PARTIAL_REPACK) {
-                tip = "该条码已部分转出，不可直接出库，请先匹配到出库单";
-            } else if (kanban.getStatus() == Kanban.STATUS_CLEARED) {
-                tip = "该条码已被清空（完全转出），不能出库";
-            }
-            throw new RuntimeException(tip);
+        boolean autoAdded = false;
+        boolean crossOrdered = false;
+
+        // 2. 状态校验
+        if (kanban.getStatus() == Kanban.STATUS_OUTBOUND) {
+            throw new RuntimeException("该条码已出库，不能重复出库");
+        }
+        if (kanban.getStatus() == Kanban.STATUS_BLOCKED) {
+            throw new RuntimeException("该条码已被封存，不能出库");
+        }
+        if (kanban.getStatus() == Kanban.STATUS_PENDING_INBOUND) {
+            throw new RuntimeException("该条码尚未入库，不能出库");
+        }
+        if (kanban.getStatus() == Kanban.STATUS_CLEARED) {
+            throw new RuntimeException("该条码已被清空（完全转出），不能出库");
+        }
+        if (kanban.getStatus() == Kanban.STATUS_PARTIAL_REPACK) {
+            throw new RuntimeException("该条码已部分转出，请先匹配到出库单后再出库");
         }
 
-        if (orderId != null && !orderId.equals(kanban.getOutboundOrderId())) {
-            throw new RuntimeException("该条码不在当前出库单的待出库清单中");
+        // 3. 处理 STATUS_AVAILABLE（在库可用）—— 非FIFO手动出库
+        if (kanban.getStatus() == Kanban.STATUS_AVAILABLE) {
+            if (orderId == null) {
+                throw new RuntimeException("该条码尚未被任何出库单匹配。请先选择出库单或通过Web端创建出库单匹配此看板。");
+            }
+            // 校验出库单存在且未作废
+            OutboundOrder order = orderMapper.selectById(orderId);
+            if (order == null) throw new RuntimeException("出库单不存在");
+            if (order.getStatus() == OutboundStatus.CANCELLED.getCode())
+                throw new RuntimeException("出库单已作废，不能出库");
+
+            // 校验该看板的零件是否在出库单明细中
+            validatePartOnOrder(orderId, kanban.getPartId());
+
+            // 非FIFO出库需用户确认
+            if (!confirmNonFifo) {
+                Map<String, Object> confirmResult = new HashMap<>();
+                confirmResult.put("needsConfirm", true);
+                confirmResult.put("kanbanNo", kanban.getKanbanNo());
+                confirmResult.put("partCode", kanban.getPartCode());
+                confirmResult.put("partName", kanban.getPartName());
+                confirmResult.put("quantity", kanban.getQuantity());
+                confirmResult.put("message", "该看板（" + kanban.getPartName()
+                        + " x" + kanban.getQuantity() + "）未按FIFO顺序匹配到此出库单，是否确认出库？");
+                return confirmResult;
+            }
+
+            // 自动锁定看板到此出库单
+            kanban.setOutboundOrderId(orderId);
+            kanban.setOutboundOrderNo(order.getOrderNo());
+            autoAdded = true;
+        }
+
+        // 4. 处理 STATUS_LOCKED 跨单转移
+        if (kanban.getStatus() == Kanban.STATUS_LOCKED
+                && orderId != null
+                && !orderId.equals(kanban.getOutboundOrderId())) {
+            // 从旧出库单释放
+            releaseKanbanFromOrder(kanban);
+            // 校验新出库单
+            OutboundOrder newOrder = orderMapper.selectById(orderId);
+            if (newOrder == null) throw new RuntimeException("目标出库单不存在");
+            if (newOrder.getStatus() == OutboundStatus.CANCELLED.getCode())
+                throw new RuntimeException("目标出库单已作废，不能出库");
+            // 校验零件是否在新单明细中
+            validatePartOnOrder(orderId, kanban.getPartId());
+            // 重新锁定到新出库单
+            kanban.setOutboundOrderId(orderId);
+            kanban.setOutboundOrderNo(newOrder.getOrderNo());
+            crossOrdered = true;
+        }
+
+        // 5. 原有校验：LOCKED 但未传 orderId（Android 兼容）
+        if (kanban.getStatus() == Kanban.STATUS_LOCKED && orderId == null) {
+            // 使用看板自身的 orderId，保持向后兼容
         }
 
         Long effectiveOrderId = orderId != null ? orderId : kanban.getOutboundOrderId();
+        if (effectiveOrderId == null) {
+            throw new RuntimeException("无法确定出库单，请提供出库单号");
+        }
 
-        // 3. 创建出库扫描记录
+        // 6. 计算本次实际出库数量（处理超量拆分）
+        List<OutboundOrderDetail> details = detailMapper.selectList(
+                new QueryWrapper<OutboundOrderDetail>()
+                        .eq("outbound_order_id", effectiveOrderId)
+                        .eq("part_id", kanban.getPartId()));
+        BigDecimal scanQty = kanban.getQuantity();
+        boolean overflowSplit = false;
+        BigDecimal overflowQty = BigDecimal.ZERO;
+
+        if (!details.isEmpty()) {
+            OutboundOrderDetail firstDetail = details.get(0);
+            BigDecimal currentActual = firstDetail.getActualQty() != null ? firstDetail.getActualQty() : BigDecimal.ZERO;
+            BigDecimal planned = firstDetail.getPlannedQty() != null ? firstDetail.getPlannedQty() : BigDecimal.ZERO;
+            BigDecimal newTotal = currentActual.add(scanQty);
+
+            if (planned.compareTo(BigDecimal.ZERO) > 0 && newTotal.compareTo(planned) > 0) {
+                // 超量：拆分看板，超出部分作为余量转包入库
+                BigDecimal outboundQty = planned.subtract(currentActual);
+                if (outboundQty.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new RuntimeException("该零件计划出库 " + planned
+                            + "，实出已达 " + currentActual + "，无法继续出库");
+                }
+                BigDecimal remainderQty = scanQty.subtract(outboundQty);
+                overflowSplit = true;
+                overflowQty = remainderQty;
+
+                // 生成余量新看板
+                Kanban remainderKanban = new Kanban();
+                remainderKanban.setKanbanNo(kanban.getKanbanNo() + "-OB-" + System.currentTimeMillis() % 100000);
+                remainderKanban.setInboundOrderId(kanban.getInboundOrderId());
+                remainderKanban.setInboundOrderNo(kanban.getInboundOrderNo());
+                remainderKanban.setPartId(kanban.getPartId());
+                remainderKanban.setPartCode(kanban.getPartCode());
+                remainderKanban.setPartName(kanban.getPartName());
+                remainderKanban.setSupplierName(kanban.getSupplierName());
+                remainderKanban.setQuantity(remainderQty);
+                remainderKanban.setOriginalQty(kanban.getOriginalQty() != null ? kanban.getOriginalQty() : scanQty);
+                remainderKanban.setBoxSeq(kanban.getBoxSeq() != null ? kanban.getBoxSeq() : 0);
+                remainderKanban.setWarehouseAreaId(kanban.getWarehouseAreaId());
+                remainderKanban.setWarehouseAreaName(kanban.getWarehouseAreaName());
+                remainderKanban.setStatus(Kanban.STATUS_AVAILABLE);
+                kanbanMapper.insert(remainderKanban);
+
+                // 自动创建入库单记录余量
+                String inboundNo = orderNoGenerator.generate();
+                OutboundOrder refOrder = orderMapper.selectById(effectiveOrderId);
+                String refOrderNo = refOrder != null ? refOrder.getOrderNo() : String.valueOf(effectiveOrderId);
+                InboundOrder ib = new InboundOrder();
+                ib.setOrderNo(inboundNo);
+                ib.setSupplierId(0L);
+                ib.setSupplierName("出库超量转包");
+                ib.setOrderNumber(refOrderNo);
+                ib.setStatus(2);
+                ib.setRemark("出库单[" + refOrderNo
+                        + "]出库超量，余量 " + remainderQty + " 件自动转包入库");
+                inboundOrderMapper.insert(ib);
+
+                InboundOrderDetail ibDetail = new InboundOrderDetail();
+                ibDetail.setInboundOrderId(ib.getId());
+                ibDetail.setPartId(remainderKanban.getPartId());
+                ibDetail.setPartCode(remainderKanban.getPartCode());
+                ibDetail.setPartName(remainderKanban.getPartName());
+                ibDetail.setUnit("件");
+                ibDetail.setPlannedQty(remainderQty);
+                ibDetail.setActualQty(remainderQty);
+                ibDetail.setWarehouseAreaId(remainderKanban.getWarehouseAreaId());
+                ibDetail.setBoxCount(BigDecimal.ONE);
+                ibDetail.setLineNo(1);
+                inboundDetailMapper.insert(ibDetail);
+
+                remainderKanban.setInboundOrderId(ib.getId());
+                remainderKanban.setInboundOrderNo(inboundNo);
+                kanbanMapper.updateById(remainderKanban);
+
+                // 原看板数量缩减为实际出库量
+                kanban.setQuantity(outboundQty);
+                scanQty = outboundQty;
+            }
+        }
+
+        // 7. 创建出库扫描记录
+        OutboundOrder order = orderMapper.selectById(effectiveOrderId);
         OutboundScan scan = new OutboundScan();
         scan.setOutboundOrderId(effectiveOrderId);
         scan.setKanbanNo(kanban.getKanbanNo());
         scan.setPartId(kanban.getPartId());
         scan.setPartCode(kanban.getPartCode());
         scan.setPartName(kanban.getPartName());
-        scan.setQuantity(kanban.getQuantity());
+        scan.setQuantity(scanQty);
         scan.setWarehouseAreaId(kanban.getWarehouseAreaId());
         scan.setWarehouseAreaName(kanban.getWarehouseAreaName());
         scan.setScanTime(LocalDateTime.now());
         scan.setOperatorId(operatorId != null ? Long.valueOf(operatorId) : null);
-        if (effectiveOrderId != null) {
-            OutboundOrder order = orderMapper.selectById(effectiveOrderId);
-            if (order != null) scan.setOutboundOrderNo(order.getOrderNo());
-        }
+        if (order != null) scan.setOutboundOrderNo(order.getOrderNo());
         scanMapper.insert(scan);
 
-        // 4. 更新看板状态为已出库，清空库位绑定
+        // 8. 更新看板状态为已出库，清空库位绑定
         kanban.setStatus(Kanban.STATUS_OUTBOUND);
         kanban.setWarehouseAreaId(null);
         kanban.setWarehouseAreaName(null);
         kanbanMapper.updateById(kanban);
 
-        // 5. 更新出库单明细实出数量
-        List<OutboundOrderDetail> details = detailMapper.selectList(
-                new QueryWrapper<OutboundOrderDetail>()
-                        .eq("outbound_order_id", effectiveOrderId)
-                        .eq("part_id", kanban.getPartId()));
+        // 9. 更新出库单明细实出数量
         for (OutboundOrderDetail detail : details) {
-            detail.setActualQty(detail.getActualQty().add(scan.getQuantity()));
+            detail.setActualQty(detail.getActualQty().add(scanQty));
             detailMapper.updateById(detail);
         }
 
-        // 6. 扣减入库库存（FIFO）
-        deductInboundStock(kanban.getPartId(), scan.getQuantity());
+        // 10. 扣减入库库存（FIFO），只扣减实际出库量
+        deductInboundStock(kanban.getPartId(), scanQty);
 
-        // 7. 重算出库单状态
+        // 11. 重算出库单状态
         recalculateStatus(effectiveOrderId);
 
-        // 8. 构建返回（始终包含plannedQty/actualQty，即使为0，避免Android端反序列化失败）
+        // 12. 构建返回
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
         result.put("kanbanNo", kanban.getKanbanNo());
         result.put("partCode", kanban.getPartCode());
         result.put("partName", kanban.getPartName());
-        result.put("quantity", kanban.getQuantity());
+        result.put("quantity", scanQty);
         result.put("warehouseAreaName", scan.getWarehouseAreaName());
+        result.put("autoAdded", autoAdded);
+        result.put("crossOrdered", crossOrdered);
+        result.put("overflowSplit", overflowSplit);
+        if (overflowSplit) {
+            result.put("overflowQty", overflowQty);
+        }
 
         // 出库单明细进度（兼容 Scanner 端）
         double plannedQty = 0.0;
         double actualQty = 0.0;
-        if (effectiveOrderId != null && !details.isEmpty()) {
+        if (!details.isEmpty()) {
             OutboundOrderDetail d = details.get(0);
             plannedQty = d.getPlannedQty() != null ? d.getPlannedQty().doubleValue() : 0.0;
             actualQty = d.getActualQty() != null ? d.getActualQty().doubleValue() : 0.0;
@@ -607,6 +749,40 @@ public class OutboundService {
             result.put("allDone", true);
         }
         return result;
+    }
+
+    /**
+     * 校验零件是否在出库单明细中
+     */
+    private void validatePartOnOrder(Long orderId, Long partId) {
+        List<OutboundOrderDetail> details = detailMapper.selectList(
+                new QueryWrapper<OutboundOrderDetail>()
+                        .eq("outbound_order_id", orderId)
+                        .eq("part_id", partId));
+        if (details.isEmpty()) {
+            Part part = partService.getById(partId);
+            String partName = part != null ? part.getName() : "未知";
+            throw new RuntimeException("零件 " + partName + " 不在当前出库单明细中，请先修改出库单添加此零件");
+        }
+    }
+
+    /**
+     * 从旧出库单释放一个看板（跨单转移时用）
+     */
+    private void releaseKanbanFromOrder(Kanban kanban) {
+        Long oldOrderId = kanban.getOutboundOrderId();
+        if (oldOrderId == null) return;
+        List<OutboundOrderDetail> details = detailMapper.selectList(
+                new QueryWrapper<OutboundOrderDetail>()
+                        .eq("outbound_order_id", oldOrderId)
+                        .eq("part_id", kanban.getPartId()));
+        for (OutboundOrderDetail d : details) {
+            BigDecimal newActual = d.getActualQty().subtract(kanban.getQuantity());
+            if (newActual.compareTo(BigDecimal.ZERO) < 0) newActual = BigDecimal.ZERO;
+            d.setActualQty(newActual);
+            detailMapper.updateById(d);
+        }
+        recalculateStatus(oldOrderId);
     }
 
     private void deductInboundStock(Long partId, BigDecimal qty) {

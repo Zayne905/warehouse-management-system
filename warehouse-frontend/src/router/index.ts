@@ -129,6 +129,18 @@ const router = createRouter({
           component: () => import('@/views/system/PartList.vue'),
           meta: { title: '零件管理', icon: 'Coin' },
         },
+        {
+          path: 'system/supplier',
+          name: 'SystemSupplier',
+          component: () => import('@/views/system/SupplierList.vue'),
+          meta: { title: '供应商管理', icon: 'OfficeBuilding' },
+        },
+        {
+          path: 'system/customer',
+          name: 'SystemCustomer',
+          component: () => import('@/views/system/CustomerList.vue'),
+          meta: { title: '客户管理', icon: 'Avatar' },
+        },
       ],
     },
   ],

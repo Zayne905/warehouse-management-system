@@ -82,7 +82,28 @@ data class OutboundScanResult(
     val partName: String,
     val quantity: Int,
     val plannedQty: Double?,
-    val actualQty: Double?
+    val actualQty: Double?,
+    val autoAdded: Boolean? = false,
+    val crossOrdered: Boolean? = false,
+    val needsConfirm: Boolean? = false,
+    val message: String? = null
+)
+
+data class OutboundOrderSummary(
+    val id: Long,
+    val orderNo: String,
+    val status: Int,
+    val statusText: String,
+    val customerName: String?,
+    val partCount: Int,
+    val parts: List<OutboundOrderPart>?
+)
+
+data class OutboundOrderPart(
+    val partId: Long,
+    val partCode: String,
+    val partName: String,
+    val plannedQty: Double
 )
 
 data class ToggleBlockResult(

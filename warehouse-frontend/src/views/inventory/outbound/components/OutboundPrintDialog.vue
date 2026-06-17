@@ -104,7 +104,11 @@ watch(() => props.visible, async (val) => {
           kanbanNo: k.kanbanNo,
           inboundOrderNo: k.inboundOrderNo,
           partCode: k.partCode,
+          partName: k.partName,
           quantity: k.quantity,
+          boxSeq: k.boxSeq,
+          supplierName: k.supplierName,
+          warehouseArea: k.warehouseAreaName,
         }), { width: 130, margin: 1, color: { dark: '#000', light: '#fff' } })
       } catch { /* ignore */ }
     }

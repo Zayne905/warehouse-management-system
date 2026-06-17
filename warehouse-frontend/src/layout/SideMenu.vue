@@ -68,6 +68,14 @@
           <el-icon><Coin /></el-icon>
           <span>零件管理</span>
         </el-menu-item>
+        <el-menu-item index="/system/supplier">
+          <el-icon><OfficeBuilding /></el-icon>
+          <span>供应商管理</span>
+        </el-menu-item>
+        <el-menu-item index="/system/customer">
+          <el-icon><Avatar /></el-icon>
+          <span>客户管理</span>
+        </el-menu-item>
       </el-sub-menu>
     </el-menu>
   </div>
@@ -90,6 +98,8 @@ import {
   User,
   Coin,
   Postcard,
+  OfficeBuilding,
+  Avatar,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()

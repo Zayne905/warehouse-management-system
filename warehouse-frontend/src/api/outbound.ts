@@ -68,12 +68,17 @@ export function cancelOutboundApi(id: number): Promise<{ code: number; message: 
   return request.post('/outbound-order/cancel', { id })
 }
 
-export function scanOutboundApi(params: { orderId?: number; kanbanNo?: string; operatorId?: number }): Promise<{ code: number; message: string; data: any }> {
+export function scanOutboundApi(params: { orderId?: number; kanbanNo?: string; operatorId?: number; confirmNonFifo?: boolean }): Promise<{ code: number; message: string; data: any }> {
   return request.post('/outbound/scan', params)
 }
 
 export function getAvailableStockApi(partId: number): Promise<{ code: number; message: string; data: number }> {
   return request.post('/outbound/available-stock', { partId })
+}
+
+/** 手动触发FIFO匹配看板 */
+export function matchKanbansApi(id: number): Promise<{ code: number; message: string; data: any }> {
+  return request.post('/outbound-order/match-kanbans', { id })
 }
 
 /** 获取出库单的待出库清单 */

@@ -18,4 +18,6 @@ public class InboundDetailVO {
     private BigDecimal boxCount;
     private Integer packageCapacity;
     private Integer lineNo;
+    private Double completionRate;
+    private String completionStatus;
 }

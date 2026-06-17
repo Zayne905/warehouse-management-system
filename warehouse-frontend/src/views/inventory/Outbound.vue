@@ -49,9 +49,9 @@
           <template #default="{ row }">{{ row.customerName || '-' }}</template>
         </el-table-column>
         <el-table-column prop="totalQty" label="计划总数" width="100" align="center" />
-        <el-table-column label="进度" width="100" align="center">
+        <el-table-column label="进度" width="120" align="center">
           <template #default="{ row }">
-            <span v-if="row.totalKanbans">{{ row.outboundCount || 0 }}/{{ row.totalKanbans }} 箱</span>
+            <span v-if="row.totalQty != null">{{ row.totalActualQty || 0 }} / {{ row.totalQty }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>

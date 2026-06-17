@@ -22,6 +22,9 @@ interface ApiService {
     @POST("scan/kanban")
     suspend fun scanKanban(@Body request: KanbanScanRequest): ApiResult<KanbanScanResult>
 
+    @POST("outbound-order/detail-by-no")
+    suspend fun getOutboundOrderByNo(@Body body: Map<String, String>): ApiResult<OutboundOrderSummary>
+
     @POST("outbound/scan")
     suspend fun scanOutbound(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<OutboundScanResult>
 

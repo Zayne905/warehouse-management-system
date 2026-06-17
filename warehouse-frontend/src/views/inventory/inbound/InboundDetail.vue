@@ -61,6 +61,32 @@
         </el-descriptions-item>
       </el-descriptions>
 
+      <!-- 入库进度 -->
+      <div v-if="order.totalPartCount" style="margin: 16px 0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-weight:bold">入库进度</span>
+          <el-progress
+            :percentage="order.totalPartCount ? Math.round((order.completedPartCount || 0) / order.totalPartCount * 100) : 0"
+            :status="order.completedPartCount === order.totalPartCount ? 'success' : undefined"
+            :stroke-width="16"
+            style="flex:1; max-width:240px"
+          />
+          <span style="color:#409eff;font-weight:bold;white-space:nowrap">
+            {{ order.completedPartCount || 0 }} / {{ order.totalPartCount }} 种
+          </span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px 16px">
+          <span v-for="d in order.details" :key="d.partCode" style="display:inline-flex;align-items:center;gap:4px;font-size:13px">
+            <span :style="{
+              display:'inline-block',width:'8px',height:'8px',borderRadius:'50%',
+              backgroundColor: d.completionStatus === 'done' ? '#67c23a' : d.completionStatus === 'partial' ? '#e6a23c' : '#c0c4cc'
+            }"></span>
+            <span>{{ d.partName }}</span>
+            <span style="color:#909399">{{ d.actualQty || 0 }}/{{ d.plannedQty || 0 }}</span>
+          </span>
+        </div>
+      </div>
+
       <!-- 零件明细 -->
       <h3 style="margin: 16px 0 12px 0">零件明细</h3>
       <el-table :data="order.details" border stripe>

@@ -6,6 +6,7 @@
           <span>出库单详情</span>
           <div>
             <el-button size="small" @click="printOrder"><el-icon><Printer /></el-icon>打印</el-button>
+            <el-button size="small" v-if="order.status === 0" type="warning" @click="doMatchKanbans" :loading="matching"><el-icon><Connection /></el-icon>匹配看板</el-button>
             <el-button size="small" v-if="order.status === 0 || order.status === 1" type="success" @click="showScanDialog = true"><el-icon><Search /></el-icon>手动出库</el-button>
             <el-button size="small" @click="router.back()"><el-icon><Back /></el-icon>返回</el-button>
           </div>
@@ -24,13 +25,30 @@
         <el-descriptions-item label="备注" :span="2">{{ order.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
 
-      <!-- 进度条 -->
-      <div v-if="totalKanbans > 0" style="margin: 16px 0">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-          <span>出库进度</span>
-          <span style="color:#409eff;font-weight:bold">{{ outboundCount }} / {{ totalKanbans }} 箱</span>
+      <!-- 出库进度 -->
+      <div v-if="order.totalPartCount" style="margin: 16px 0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-weight:bold">出库进度</span>
+          <el-progress
+            :percentage="order.totalPartCount ? Math.round((order.completedPartCount || 0) / order.totalPartCount * 100) : 0"
+            :status="order.completedPartCount === order.totalPartCount ? 'success' : undefined"
+            :stroke-width="16"
+            style="flex:1; max-width:240px"
+          />
+          <span style="color:#409eff;font-weight:bold;white-space:nowrap">
+            {{ order.completedPartCount || 0 }} / {{ order.totalPartCount }} 种
+          </span>
         </div>
-        <el-progress :percentage="progressPercent" :status="progressPercent === 100 ? 'success' : undefined" :stroke-width="20" />
+        <div style="display:flex;flex-wrap:wrap;gap:6px 16px">
+          <span v-for="d in order.details" :key="d.partCode" style="display:inline-flex;align-items:center;gap:4px;font-size:13px">
+            <span :style="{
+              display:'inline-block',width:'8px',height:'8px',borderRadius:'50%',
+              backgroundColor: d.completionStatus === 'done' ? '#67c23a' : d.completionStatus === 'partial' ? '#e6a23c' : '#c0c4cc'
+            }"></span>
+            <span>{{ d.partName }}</span>
+            <span style="color:#909399">{{ d.actualQty || 0 }}/{{ d.plannedQty || 0 }}</span>
+          </span>
+        </div>
       </div>
 
       <!-- 零件汇总 -->
@@ -118,14 +136,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Back, Search, Printer } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Back, Search, Printer, Connection } from '@element-plus/icons-vue'
 import QRCode from 'qrcode'
-import { getOutboundDetailApi, scanOutboundApi, OutboundStatusTagType } from '@/api/outbound'
+import { getOutboundDetailApi, scanOutboundApi, matchKanbansApi, OutboundStatusTagType } from '@/api/outbound'
 import OutboundPrintDialog from './components/OutboundPrintDialog.vue'
 
 const route = useRoute(); const router = useRouter()
-const showScanDialog = ref(false); const scanning = ref(false)
+const showScanDialog = ref(false); const scanning = ref(false); const matching = ref(false)
 const scanKanbanNo = ref(''); const scanResult = ref(''); const scanError = ref(false)
 const scanAllDone = ref(false)
 const scanInputRef = ref<any>(null)
@@ -155,7 +173,11 @@ async function renderKanbanQRCodes(kbList: any[]) {
           kanbanNo: k.kanbanNo,
           inboundOrderNo: k.inboundOrderNo,
           partCode: k.partCode,
+          partName: k.partName,
           quantity: k.quantity,
+          boxSeq: k.boxSeq,
+          supplierName: k.supplierName,
+          warehouseArea: k.warehouseAreaName,
         }), { width: 100, margin: 1, color: { dark: '#000', light: '#fff' } })
       } catch { /* ignore */ }
     }
@@ -269,7 +291,22 @@ function printOrder() {
   win.document.close(); win.focus()
 }
 
-async function doScanOutbound() {
+async function doMatchKanbans() {
+  try {
+    await ElMessageBox.confirm('将按FIFO顺序为此出库单匹配在库看板，确定继续？', '匹配看板', {
+      confirmButtonText: '确定匹配',
+      cancelButtonText: '取消',
+      type: 'info',
+    })
+    matching.value = true
+    await matchKanbansApi(order.value.id)
+    ElMessage.success('看板匹配完成')
+    await loadData()
+  } catch { /* 取消 */ }
+  finally { matching.value = false }
+}
+
+async function doScanOutbound(confirmed = false) {
   const kanbanNo = scanKanbanNo.value.trim()
   if (!kanbanNo) { ElMessage.warning('请输入看板号'); return }
   scanning.value = true; scanResult.value = ''; scanError.value = false
@@ -277,13 +314,40 @@ async function doScanOutbound() {
     const res = await scanOutboundApi({
       orderId: order.value.id,
       kanbanNo: kanbanNo,
-      operatorId: 1
+      operatorId: 1,
+      confirmNonFifo: confirmed,
     })
     const d = res.data
+    // 非FIFO确认提示
+    if (d.needsConfirm) {
+      scanning.value = false
+      try {
+        await ElMessageBox.confirm(d.message, '非FIFO出库确认', {
+          confirmButtonText: '确认出库',
+          cancelButtonText: '取消',
+          type: 'warning',
+        })
+        // 用户确认，重新发送带 confirmNonFifo=true
+        scanKanbanNo.value = kanbanNo
+        await doScanOutbound(true)
+      } catch (e: any) {
+        // 用户取消或确认后出库失败
+        if (e === 'cancel' || e?.message === 'cancel') {
+          scanResult.value = '已取消'; scanError.value = true
+        } else {
+          scanResult.value = e?.message || '出库失败'; scanError.value = true
+        }
+      }
+      return
+    }
     // 在待出库清单中查找匹配行，准备高亮
     const match = pendingKanbans.value.find(k => k.kanbanNo === d.kanbanNo)
     const boxInfo = match ? `箱号 C-${match.boxSeq}` : ''
-    scanResult.value = `${d.partName} x${d.quantity} 已出库 ${boxInfo}`
+    let msg = `${d.partName} x${d.quantity} 已出库`
+    if (d.autoAdded) msg = `${d.partName} x${d.quantity} 已出库（自动匹配）`
+    if (d.crossOrdered) msg = `${d.partName} x${d.quantity} 已出库（从其他出库单转移）`
+    if (d.overflowSplit) msg = `${d.partName} x${d.quantity} 已出库，溢出 ${d.overflowQty} 件自动转包入库`
+    scanResult.value = `${msg} ${boxInfo}`
     scanError.value = false
     scanKanbanNo.value = '' // 清空准备下一次扫描
 
@@ -294,7 +358,9 @@ async function doScanOutbound() {
     await nextTick()
     scanInputRef.value?.focus()
   } catch (e: any) {
-    scanResult.value = e?.message || '出库失败'; scanError.value = true
+    if (e?.message && e.message !== 'cancel') {
+      scanResult.value = e?.message || '出库失败'; scanError.value = true
+    }
   } finally { scanning.value = false }
 }
 
