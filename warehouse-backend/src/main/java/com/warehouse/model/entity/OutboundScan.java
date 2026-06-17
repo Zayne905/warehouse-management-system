@@ -19,6 +19,8 @@ public class OutboundScan {
     private String partCode;
     private String partName;
     private BigDecimal quantity;
+    private Long warehouseAreaId;
+    private String warehouseAreaName;
     private LocalDateTime scanTime;
     private Long operatorId;
     private LocalDateTime createTime;

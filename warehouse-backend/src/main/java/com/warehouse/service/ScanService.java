@@ -114,6 +114,7 @@ public class ScanService {
         // 更新明细实入数量
         detail.setActualQty(detail.getActualQty().add(scanQty));
         detailMapper.updateById(detail);
+        syncManualInboundKanbans(detail);
 
         // 重新计算入库单状态
         inboundOrderService.recalculateStatus(dto.getInboundOrderId());
@@ -158,6 +159,7 @@ public class ScanService {
                 detail.setActualQty(BigDecimal.ZERO);
             }
             detailMapper.updateById(detail);
+            syncManualInboundKanbans(detail);
         }
 
         scanRecordMapper.deleteById(scanRecordId);
@@ -221,6 +223,29 @@ public class ScanService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    private void syncManualInboundKanbans(InboundOrderDetail detail) {
+        List<Kanban> kanbans = kanbanMapper.selectList(
+                new QueryWrapper<Kanban>()
+                        .eq("inbound_order_id", detail.getInboundOrderId())
+                        .eq("part_id", detail.getPartId())
+                        .orderByAsc("box_seq"));
+        BigDecimal received = detail.getActualQty() != null ? detail.getActualQty() : BigDecimal.ZERO;
+        for (Kanban kanban : kanbans) {
+            if (kanban.getStatus() != Kanban.STATUS_PENDING_INBOUND
+                    && kanban.getStatus() != Kanban.STATUS_AVAILABLE) {
+                continue;
+            }
+            BigDecimal qty = kanban.getQuantity() != null ? kanban.getQuantity() : BigDecimal.ZERO;
+            if (received.compareTo(qty) >= 0) {
+                kanban.setStatus(Kanban.STATUS_AVAILABLE);
+                received = received.subtract(qty);
+            } else {
+                kanban.setStatus(Kanban.STATUS_PENDING_INBOUND);
+            }
+            kanbanMapper.updateById(kanban);
+        }
+    }
+
     // ==================== 看板扫码入库 ====================
 
     /**
@@ -264,11 +289,11 @@ public class ScanService {
         record.setPartCode(dto.getPartCode());
         record.setPartName(dto.getPartName());
         record.setKanbanNo(dto.getKanbanNo());
-        int scanQty = dto.getQuantity() != null ? dto.getQuantity() : 0;
-        if (scanQty <= 0) {
+        BigDecimal scanQty = dto.getQuantity() != null ? dto.getQuantity() : BigDecimal.ZERO;
+        if (scanQty.compareTo(BigDecimal.ZERO) <= 0) {
             throw new RuntimeException("扫描数量必须大于0");
         }
-        record.setScanQty(BigDecimal.valueOf(scanQty));
+        record.setScanQty(scanQty);
         record.setScanTime(java.time.LocalDateTime.now());
         record.setOperatorId(dto.getOperatorId());
         scanRecordMapper.insert(record);
@@ -299,7 +324,7 @@ public class ScanService {
         }
         // fallback: 数据库无看板记录时从明细的boxCount估算总箱数
         if (boxTotal == 0 && detail.getBoxCount() != null) {
-            boxTotal = detail.getBoxCount();
+            boxTotal = detail.getBoxCount().setScale(0, java.math.RoundingMode.CEILING).intValue();
         }
         int boxScanned = (int) scanRecordMapper.selectCount(
                 new QueryWrapper<ScanRecord>()

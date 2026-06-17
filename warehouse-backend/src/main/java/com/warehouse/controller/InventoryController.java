@@ -19,7 +19,10 @@ public class InventoryController {
     }
 
     @PostMapping("/inventory/stock-list")
-    public Result<List<InventoryVO>> stockList(@RequestBody Map<String, String> body) {
-        return Result.ok(inventoryService.listStock(body.get("keyword")));
+    public Result<List<InventoryVO>> stockList(@RequestBody Map<String, Object> body) {
+        String keyword = body.get("keyword") != null ? body.get("keyword").toString() : "";
+        Long warehouseAreaId = body.get("warehouseAreaId") != null
+                ? Long.valueOf(body.get("warehouseAreaId").toString()) : null;
+        return Result.ok(inventoryService.listStock(keyword, warehouseAreaId));
     }
 }

@@ -7,6 +7,8 @@ target/
 *.war
 *.log
 !.mvn/wrapper/maven-wrapper.jar
+warehouse-backend/warehouse_db_backup_*.sql
+warehouse-backend/warehouse_db_before_full_reset_*.sql
 
 # ====================
 # Node / Vue / Vite
@@ -15,6 +17,10 @@ node_modules/
 dist/
 .vite/
 *.local
+*.tsbuildinfo
+warehouse-frontend/.npm-cache/
+warehouse-frontend/vite.config.js
+warehouse-frontend/vite.config.d.ts
 
 # ====================
 # IDE
@@ -22,6 +28,8 @@ dist/
 .idea/
 *.iml
 .vscode/
+.claude/
+.playwright-mcp/
 *.swp
 *.swo
 *~
@@ -41,4 +49,10 @@ desktop.ini
 .env
 .env.*
 warehouse.zip
-.worktrees/
+
+# Android / Gradle
+.gradle/
+**/build/
+warehouse-scanner/.tools/
+warehouse-scanner/local.properties
+*.apk

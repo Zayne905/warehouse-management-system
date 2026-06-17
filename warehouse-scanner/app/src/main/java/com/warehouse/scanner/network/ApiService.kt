@@ -22,8 +22,14 @@ interface ApiService {
     @POST("scan/kanban")
     suspend fun scanKanban(@Body request: KanbanScanRequest): ApiResult<KanbanScanResult>
 
+    @POST("outbound-order/detail-by-no")
+    suspend fun getOutboundOrderByNo(@Body body: Map<String, String>): ApiResult<OutboundOrderSummary>
+
     @POST("outbound/scan")
     suspend fun scanOutbound(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<OutboundScanResult>
+
+    @POST("kanban/toggle-block")
+    suspend fun toggleBlock(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<ToggleBlockResult>
 
     @POST("scan/feedback")
     suspend fun getScanFeedback(@Body request: ScanFeedbackRequest): ApiResult<Map<String, Any>>
@@ -41,4 +47,29 @@ interface ApiService {
 
     @POST("inbound-order/detail-by-no")
     suspend fun getInboundOrderDetailByNo(@Body body: Map<String, String>): ApiResult<InboundOrderVO>
+
+    // ==================== 转包 ====================
+
+    @POST("repack/preview")
+    suspend fun repackPreview(@Body body: Map<String, String>): ApiResult<RepackPreviewData>
+
+    @POST("repack/add-detail")
+    suspend fun repackAddDetail(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<RepackOrderData>
+
+    @POST("repack/breakdown-generate")
+    suspend fun repackBreakdownGenerate(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<RepackOrderData>
+
+    @POST("repack/save")
+    suspend fun repackCreate(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResult<RepackOrderData>
+
+    @POST("repack/confirm")
+    suspend fun repackConfirm(@Body body: Map<String, Long>): ApiResult<RepackOrderData>
+
+    // ==================== 溯源 ====================
+
+    @POST("repack/trace")
+    suspend fun repackTrace(@Body body: Map<String, String>): ApiResult<TraceData>
+
+    @POST("kanban/lifecycle")
+    suspend fun kanbanLifecycle(@Body body: Map<String, String>): ApiResult<KanbanLifecycleData>
 }

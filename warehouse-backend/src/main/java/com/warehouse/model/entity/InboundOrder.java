@@ -15,6 +15,8 @@ public class InboundOrder {
     private String orderNo;
     private Long supplierId;
     private String supplierName;
+    private Long customerId;
+    private String customerName;
     private String orderNumber;
     private Integer status;
     private String remark;

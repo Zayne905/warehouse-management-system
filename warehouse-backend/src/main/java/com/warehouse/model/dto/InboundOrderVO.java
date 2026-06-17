@@ -9,6 +9,8 @@ public class InboundOrderVO {
     private String orderNo;
     private Long supplierId;
     private String supplierName;
+    private Long customerId;
+    private String customerName;
     private String orderNumber;
     private Integer status;
     private String statusText;
@@ -16,4 +18,6 @@ public class InboundOrderVO {
     private String createTime;
     private String updateTime;
     private List<InboundDetailVO> details;
+    private Integer completedPartCount;
+    private Integer totalPartCount;
 }

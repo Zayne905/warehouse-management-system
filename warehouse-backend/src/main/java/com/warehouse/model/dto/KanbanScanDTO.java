@@ -1,6 +1,7 @@
 package com.warehouse.model.dto;
 
 import lombok.Data;
+import java.math.BigDecimal;
 
 /**
  * 看板扫码入库请求
@@ -12,7 +13,7 @@ public class KanbanScanDTO {
     private String partCode;
     private String partName;
     private String supplierName;
-    private Integer quantity;
+    private BigDecimal quantity;
     private String warehouseArea;
     private String inboundOrderNo;
     private Integer boxSeq;

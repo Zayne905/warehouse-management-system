@@ -26,6 +26,8 @@ export interface InboundOrderVO {
   orderNo: string
   supplierId: number
   supplierName: string
+  customerId?: number
+  customerName?: string
   orderNumber: string
   status: number
   statusText: string
@@ -66,6 +68,7 @@ export interface InboundQuery {
 export interface InboundSaveDTO {
   id?: number
   supplierId: number
+  customerId?: number
   orderNumber: string
   remark: string
   details: InboundDetailDTO[]
@@ -93,11 +96,24 @@ export interface PageResult<T> {
 
 // 供应商
 export interface Supplier {
-  id: number
+  id?: number
   code: string
   name: string
-  contact: string
-  phone: string
+  contact?: string
+  phone?: string
+  address?: string
+  enabled?: boolean
+}
+
+// 客户
+export interface Customer {
+  id?: number
+  code: string
+  name: string
+  contact?: string
+  phone?: string
+  address?: string
+  enabled?: boolean
 }
 
 // 物料/零件

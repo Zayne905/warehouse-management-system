@@ -2,6 +2,8 @@ package com.warehouse.scanner.ui.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,6 +19,9 @@ import com.warehouse.scanner.network.TokenProvider
 fun HomeScreen(
     onNavigateToScanner: () -> Unit,
     onNavigateToOutboundScanner: () -> Unit,
+    onNavigateToBlockUnblock: () -> Unit,
+    onNavigateToRepack: () -> Unit,
+    onNavigateToTrace: () -> Unit,
     onLogout: () -> Unit
 ) {
     Scaffold(
@@ -38,7 +43,8 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 欢迎信息
@@ -80,13 +86,31 @@ fun HomeScreen(
                 onClick = onNavigateToOutboundScanner
             )
 
-            // 库存查询入口（占位）
+            // 扫码封存/解封入口
             MenuCard(
-                icon = Icons.Default.Inventory,
-                title = "库存查询",
-                subtitle = "即将上线",
-                enabled = false,
-                onClick = {}
+                icon = Icons.Default.Lock,
+                title = "扫码封存/解封",
+                subtitle = "在库可用自动封存，已封存自动解封",
+                onClick = onNavigateToBlockUnblock
+            )
+
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            Text("转包与追溯", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+            // 扫码转包入口
+            MenuCard(
+                icon = Icons.Default.DynamicFeed,
+                title = "扫码转包",
+                subtitle = "扫描源包装，带余量转包/合并/拆包",
+                onClick = onNavigateToRepack
+            )
+
+            // 扫码溯源入口
+            MenuCard(
+                icon = Icons.Default.TravelExplore,
+                title = "看板生命周期",
+                subtitle = "扫码或输入看板号，查询入库、转包和出库记录",
+                onClick = onNavigateToTrace
             )
         }
     }

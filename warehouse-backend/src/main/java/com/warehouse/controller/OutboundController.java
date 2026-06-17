@@ -23,7 +23,9 @@ public class OutboundController {
         int size = body.get("size") != null ? Integer.parseInt(body.get("size").toString()) : 10;
         String orderNo = (String) body.get("orderNo");
         Integer status = body.get("status") != null ? Integer.parseInt(body.get("status").toString()) : null;
-        return Result.ok(outboundService.list(current, size, orderNo, status));
+        String supplier = (String) body.get("supplier");
+        String customerName = (String) body.get("customerName");
+        return Result.ok(outboundService.list(current, size, orderNo, status, supplier, customerName));
     }
 
     @PostMapping("/outbound-order/detail")
@@ -48,6 +50,15 @@ public class OutboundController {
         return Result.ok(null);
     }
 
+    @PostMapping("/outbound-order/detail-by-no")
+    public Result<Map<String, Object>> detailByNo(@RequestBody Map<String, String> body) {
+        String orderNo = body.get("orderNo");
+        if (orderNo == null || orderNo.isEmpty()) {
+            return Result.error(400, "出库单号不能为空");
+        }
+        return Result.ok(outboundService.getDetailByOrderNo(orderNo));
+    }
+
     /**
      * 扫码出库（FIFO自动选最早入库的看板）
      */
@@ -58,7 +69,9 @@ public class OutboundController {
         String kanbanNo = (String) body.get("kanbanNo");
         Integer operatorId = body.get("operatorId") != null
                 ? Integer.parseInt(body.get("operatorId").toString()) : null;
-        return Result.ok(outboundService.scanOutbound(orderId, kanbanNo, operatorId));
+        boolean confirmNonFifo = body.get("confirmNonFifo") != null
+                && Boolean.parseBoolean(body.get("confirmNonFifo").toString());
+        return Result.ok(outboundService.scanOutbound(orderId, kanbanNo, operatorId, confirmNonFifo));
     }
 
     /**
@@ -67,5 +80,22 @@ public class OutboundController {
     @PostMapping("/outbound/available-stock")
     public Result<?> availableStock(@RequestBody Map<String, Long> body) {
         return Result.ok(outboundService.getAvailableStock(body.get("partId")));
+    }
+
+    /**
+     * 手动触发FIFO匹配看板
+     */
+    @PostMapping("/outbound-order/match-kanbans")
+    public Result<?> matchKanbans(@RequestBody Map<String, Long> body) {
+        outboundService.autoMatchKanbans(body.get("id"));
+        return Result.ok(null);
+    }
+
+    /**
+     * 查询出库单的待出库清单（锁定看板列表）
+     */
+    @PostMapping("/outbound-order/pending-kanbans")
+    public Result<?> pendingKanbans(@RequestBody Map<String, Long> body) {
+        return Result.ok(outboundService.getPendingKanbans(body.get("id")));
     }
 }

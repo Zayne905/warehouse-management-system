@@ -10,6 +10,11 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="客户">
+          <el-select v-model="form.customerName" placeholder="请选择客户" clearable style="width:240px">
+            <el-option v-for="c in customerList" :key="c.id" :label="c.name" :value="c.name" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="备注信息" />
         </el-form-item>
@@ -27,21 +32,12 @@
         <el-table-column prop="partCode" label="物料编码" width="120" />
         <el-table-column prop="partName" label="物料名称" width="140" />
         <el-table-column prop="unit" label="单位" width="70" />
-        <el-table-column label="可用库存" width="90" align="center">
+        <el-table-column label="可用库存" width="100" align="center">
           <template #default="{ row }">{{ row._stock ?? '-' }}</template>
         </el-table-column>
-        <el-table-column label="计划出库" width="130">
+        <el-table-column label="计划出库数量" width="140">
           <template #default="{ row }">
-            <el-input-number v-model="row.plannedQty" :min="0" :max="row._stock||99999" controls-position="right" size="small" style="width:100%" />
-          </template>
-        </el-table-column>
-        <el-table-column label="包装容量" width="90" align="center">
-          <template #default="{ row }">{{ row.packageCapacity || 1 }}</template>
-        </el-table-column>
-        <el-table-column label="箱数" width="100">
-          <template #default="{ row }">
-            <el-input-number v-model="row.boxCount" :min="0" size="small" controls-position="right" style="width:100%"
-              @change="onBoxChange(row)" />
+            <el-input-number v-model="row.plannedQty" :min="1" :max="row._stock||99999" controls-position="right" size="small" style="width:100%" />
           </template>
         </el-table-column>
         <el-table-column label="实出" width="70" align="center">
@@ -61,8 +57,20 @@
     </div>
 
     <!-- 零件选择器 -->
-    <el-dialog v-model="showPartSelector" title="选择零件" width="600px">
-      <el-table :data="partList" border stripe @selection-change="onPartSelect">
+    <el-dialog v-model="showPartSelector" title="选择零件（仅显示有库存的零件）" width="650px">
+      <div style="margin-bottom: 12px;">
+        <el-input
+          v-model="partSearchKeyword"
+          placeholder="搜索物料编码或名称"
+          clearable
+          style="width: 260px"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+      </div>
+      <el-table :data="filteredPartList" border stripe max-height="400" @selection-change="onPartSelect">
         <el-table-column type="selection" width="45" />
         <el-table-column prop="code" label="编码" width="120" />
         <el-table-column prop="name" label="名称" width="140" />
@@ -71,7 +79,9 @@
           <template #default="{ row }">{{ row._stock }}</template>
         </el-table-column>
       </el-table>
-      <div v-if="partList.length === 0" style="text-align:center;padding:20px;color:#909399">暂无有库存的零件</div>
+      <div v-if="filteredPartList.length === 0" style="text-align:center;padding:20px;color:#909399">
+        {{ partSearchKeyword ? '无匹配零件' : '暂无有库存的零件' }}
+      </div>
       <template #footer>
         <el-button @click="showPartSelector = false">取消</el-button>
         <el-button type="primary" @click="addSelectedParts" :disabled="selParts.length===0">添加选中 ({{ selParts.length }})</el-button>
@@ -81,27 +91,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, Search } from '@element-plus/icons-vue'
 import { getPartListApi } from '@/api/part'
 import { saveOutboundApi, getOutboundDetailApi, getAvailableStockApi } from '@/api/outbound'
+import { getCustomerListApi } from '@/api/customer'
+import type { Customer } from '@/types/inbound'
 
 const router = useRouter(); const route = useRoute()
-const isEdit = ref(false); const showPartSelector = ref(false)
+const isEdit = ref(false); const showPartSelector = ref(false); const partSearchKeyword = ref('')
 const selectedRows = ref<any[]>([]); const selParts = ref<any[]>([])
-const form = reactive({ id: undefined as number|undefined, orderNo: '', remark: '' })
+const customerList = ref<Customer[]>([])
+const form = reactive({ id: undefined as number|undefined, orderNo: '', remark: '', customerName: '' })
 const details = ref<any[]>([])
 const partList = ref<any[]>([])
 
+const filteredPartList = computed(() => {
+  const kw = partSearchKeyword.value.trim().toLowerCase()
+  if (!kw) return partList.value
+  return partList.value.filter((p: any) =>
+    (p.code && p.code.toLowerCase().includes(kw)) ||
+    (p.name && p.name.toLowerCase().includes(kw))
+  )
+})
+
 onMounted(async () => {
+  // 加载客户列表
+  try {
+    const res = await getCustomerListApi()
+    customerList.value = res.data || []
+  } catch { /* */ }
   const editId = route.params.id
   if (editId) {
     isEdit.value = true
     try {
       const res = await getOutboundDetailApi(Number(editId))
-      const o = res.data; form.id = o.id; form.orderNo = o.orderNo; form.remark = o.remark || ''
+      const o = res.data; form.id = o.id; form.orderNo = o.orderNo; form.remark = o.remark || ''; form.customerName = o.customerName || ''
       details.value = (o.details || []).map((d: any) => ({ ...d, _stock: d.availableStock }))
     } catch { /* */ }
   }
@@ -109,15 +136,13 @@ onMounted(async () => {
 
 function onSelect(rows: any[]) { selectedRows.value = rows }
 function onPartSelect(rows: any[]) { selParts.value = rows }
-function onBoxChange(row: any) {
-  row.plannedQty = (row.boxCount || 0) * (row.packageCapacity || 1)
-}
 function removeRows() {
   const ids = new Set(selectedRows.value.map((r: any) => r.partId))
   details.value = details.value.filter(d => !ids.has(d.partId))
 }
 
 async function openPartSelector() {
+  partSearchKeyword.value = ''
   showPartSelector.value = true
   try {
     const res = await getPartListApi()
@@ -138,7 +163,7 @@ function addSelectedParts() {
     if (details.value.some(d => d.partId === p.id)) continue
     details.value.push({
       partId: p.id, partCode: p.code, partName: p.name, unit: p.unit,
-      plannedQty: 0, actualQty: 0, boxCount: 0, packageCapacity: p.packageCapacity || 1,
+      plannedQty: 0, actualQty: 0,
       _stock: p._stock || 0
     })
   }
@@ -147,16 +172,20 @@ function addSelectedParts() {
 
 async function doSave() {
   if (details.value.length === 0) { ElMessage.warning('请添加零件'); return }
+  for (const d of details.value) {
+    if (!d.plannedQty || d.plannedQty <= 0) { ElMessage.warning(`${d.partName}: 请输入计划出库数量`); return }
+  }
   try {
-    await saveOutboundApi({
-      id: form.id, remark: form.remark,
+    const res = await saveOutboundApi({
+      id: form.id, remark: form.remark, customerName: form.customerName,
       details: details.value.map((d, i) => ({
         partId: d.partId, plannedQty: d.plannedQty,
-        boxCount: d.boxCount || 0,
-        unit: d.unit, warehouseAreaId: d.warehouseAreaId, lineNo: i + 1
+        boxCount: 0, unit: d.unit, lineNo: i + 1
       }))
     })
-    ElMessage.success('保存成功'); router.push('/inventory/outbound')
+    const o = res.data
+    ElMessage.success(`保存成功！请在详情页手动匹配看板或直接扫码出库。`)
+    router.push(`/inventory/outbound/detail/${o.id}`)
   } catch { /* */ }
 }
 </script>

@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ public class InboundOrderService {
     private final WarehouseAreaService warehouseAreaService;
     private final SupplierPartService supplierPartService;
     private final KanbanService kanbanService;
+    private final CustomerService customerService;
 
     public InboundOrderService(InboundOrderMapper inboundOrderMapper,
                                InboundOrderDetailMapper detailMapper,
@@ -39,7 +41,8 @@ public class InboundOrderService {
                                PartService partService,
                                WarehouseAreaService warehouseAreaService,
                                SupplierPartService supplierPartService,
-                               KanbanService kanbanService) {
+                               KanbanService kanbanService,
+                               CustomerService customerService) {
         this.inboundOrderMapper = inboundOrderMapper;
         this.detailMapper = detailMapper;
         this.orderNoGenerator = orderNoGenerator;
@@ -48,6 +51,7 @@ public class InboundOrderService {
         this.warehouseAreaService = warehouseAreaService;
         this.supplierPartService = supplierPartService;
         this.kanbanService = kanbanService;
+        this.customerService = customerService;
     }
 
     // ==================== 列表查询 ====================
@@ -95,7 +99,11 @@ public class InboundOrderService {
                 new QueryWrapper<InboundOrderDetail>()
                         .eq("inbound_order_id", id)
                         .orderByAsc("line_no"));
-        vo.setDetails(details.stream().map(this::toDetailVO).collect(Collectors.toList()));
+        List<InboundDetailVO> detailVOs = details.stream().map(this::toDetailVO).collect(Collectors.toList());
+        vo.setDetails(detailVOs);
+        long completedParts = detailVOs.stream().filter(d -> "done".equals(d.getCompletionStatus())).count();
+        vo.setCompletedPartCount((int) completedParts);
+        vo.setTotalPartCount(detailVOs.size());
         return vo;
     }
 
@@ -133,6 +141,11 @@ public class InboundOrderService {
         order.setOrderNo(orderNo);
         order.setSupplierId(dto.getSupplierId());
         order.setSupplierName(supplier.getName());
+        order.setCustomerId(dto.getCustomerId());
+        if (dto.getCustomerId() != null) {
+            Customer customer = customerService.getById(dto.getCustomerId());
+            order.setCustomerName(customer != null ? customer.getName() : null);
+        }
         order.setOrderNumber(dto.getOrderNumber());
         order.setRemark(dto.getRemark());
         order.setStatus(InboundStatus.PENDING.getCode());
@@ -168,6 +181,13 @@ public class InboundOrderService {
         order.setSupplierId(dto.getSupplierId());
         Supplier supplier = supplierService.getById(dto.getSupplierId());
         order.setSupplierName(supplier != null ? supplier.getName() : null);
+        order.setCustomerId(dto.getCustomerId());
+        if (dto.getCustomerId() != null) {
+            Customer customer = customerService.getById(dto.getCustomerId());
+            order.setCustomerName(customer != null ? customer.getName() : null);
+        } else {
+            order.setCustomerName(null);
+        }
         order.setOrderNumber(dto.getOrderNumber());
         order.setRemark(dto.getRemark());
         inboundOrderMapper.updateById(order);
@@ -244,6 +264,9 @@ public class InboundOrderService {
         }
         if (order.getStatus() == null) {
             throw new RuntimeException("入库单状态异常，无法作废");
+        }
+        if (order.getStatus() == InboundStatus.COMPLETED.getCode()) {
+            throw new RuntimeException("已入库的订单不能作废");
         }
         if (order.getStatus() == InboundStatus.CANCELLED.getCode()) {
             throw new RuntimeException("该入库单已经是作废状态");
@@ -402,10 +425,24 @@ public class InboundOrderService {
             detail.setPartName(part.getName());
             detail.setUnit(dto.getUnit() != null ? dto.getUnit() : part.getUnit());
 
-            // 计算 plannedQty = 包装容量 × 箱数
+            /**
+             * 数量与箱数可由前端双向换算；优先保留用户输入的入库数量。
+             */
             int capacity = part.getPackageCapacity() != null ? part.getPackageCapacity() : 1;
-            int boxCount = dto.getBoxCount() != null ? dto.getBoxCount() : 0;
-            BigDecimal plannedQty = BigDecimal.valueOf(capacity).multiply(BigDecimal.valueOf(boxCount));
+            BigDecimal plannedQty = dto.getPlannedQty() != null
+                    ? dto.getPlannedQty()
+                    : BigDecimal.ZERO;
+            // ***优先保存前端明确输入的入库数量。
+            BigDecimal boxCount = dto.getBoxCount();
+            // ***只输入数量时，后端补算箱数。
+            if (boxCount == null && plannedQty.compareTo(BigDecimal.ZERO) > 0) {
+                boxCount = plannedQty.divide(BigDecimal.valueOf(capacity), 2, RoundingMode.HALF_UP);
+            }
+            if (boxCount == null) boxCount = BigDecimal.ZERO;
+            // ***只输入箱数时，后端补算计划入库数量。
+            if (plannedQty.compareTo(BigDecimal.ZERO) <= 0 && boxCount.compareTo(BigDecimal.ZERO) > 0) {
+                plannedQty = BigDecimal.valueOf(capacity).multiply(boxCount);
+            }
             detail.setPlannedQty(plannedQty);
             detail.setBoxCount(boxCount);
 
@@ -441,6 +478,8 @@ public class InboundOrderService {
         vo.setOrderNo(order.getOrderNo());
         vo.setSupplierId(order.getSupplierId());
         vo.setSupplierName(order.getSupplierName());
+        vo.setCustomerId(order.getCustomerId());
+        vo.setCustomerName(order.getCustomerName());
         vo.setOrderNumber(order.getOrderNumber());
         vo.setStatus(order.getStatus());
         vo.setStatusText(InboundStatus.getLabelByCode(order.getStatus()));
@@ -451,6 +490,17 @@ public class InboundOrderService {
         if (order.getUpdateTime() != null) {
             vo.setUpdateTime(order.getUpdateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
         }
+        // 零件完成统计
+        List<InboundOrderDetail> dets = detailMapper.selectList(
+                new QueryWrapper<InboundOrderDetail>().eq("inbound_order_id", order.getId()));
+        long completed = dets.stream()
+                .filter(d -> {
+                    BigDecimal a = d.getActualQty() != null ? d.getActualQty() : BigDecimal.ZERO;
+                    BigDecimal p = d.getPlannedQty() != null ? d.getPlannedQty() : BigDecimal.ZERO;
+                    return a.compareTo(p) >= 0 && p.compareTo(BigDecimal.ZERO) > 0;
+                }).count();
+        vo.setCompletedPartCount((int) completed);
+        vo.setTotalPartCount(dets.size());
         return vo;
     }
 
@@ -478,6 +528,15 @@ public class InboundOrderService {
             }
         }
         vo.setLineNo(detail.getLineNo());
+        // 完成状态
+        BigDecimal planned = detail.getPlannedQty() != null ? detail.getPlannedQty() : BigDecimal.ZERO;
+        BigDecimal actual = detail.getActualQty() != null ? detail.getActualQty() : BigDecimal.ZERO;
+        double rate = planned.compareTo(BigDecimal.ZERO) > 0
+            ? actual.divide(planned, 4, java.math.RoundingMode.HALF_UP).doubleValue()
+            : (actual.compareTo(BigDecimal.ZERO) > 0 ? 1.0 : 0.0);
+        vo.setCompletionRate(rate);
+        vo.setCompletionStatus(actual.compareTo(planned) >= 0 ? "done"
+            : (actual.compareTo(BigDecimal.ZERO) > 0 ? "partial" : "none"));
         return vo;
     }
 }

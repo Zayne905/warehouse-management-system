@@ -40,9 +40,6 @@
                 </tr>
               </tbody>
             </table>
-            <div style="text-align: center; margin-top: 12px;">
-              <canvas ref="orderQrRef" width="150" height="150"></canvas>
-            </div>
           </div>
           <el-button type="primary" style="margin-top: 12px; width: 100%" @click="printOrderKanban">
             <el-icon><Printer /></el-icon>
@@ -75,7 +72,7 @@
                 <div class="info-row"><span class="label">零件名</span><span>{{ k.partName }}</span></div>
                 <div class="info-row"><span class="label">供应商</span><span>{{ k.supplierName }}</span></div>
                 <div class="info-row"><span class="label">库区</span><span>{{ k.warehouseAreaName || '-' }}</span></div>
-                <div class="info-row"><span class="label">数量</span><span class="qty">{{ k.quantity }}</span></div>
+                <div class="info-row"><span class="label">数量/箱数</span><span class="qty">{{ quantityBoxes(k) }}</span></div>
                 <div class="info-row"><span class="label">箱号</span><span>C-{{ k.boxSeq }}</span></div>
               </div>
               <div class="kanban-qr">
@@ -124,7 +121,6 @@ const loading = ref(false)
 const kanbans = ref<Kanban[]>([])
 const selectedIds = ref(new Set<number>())
 const partQrRefs = ref<Map<number, HTMLCanvasElement>>(new Map())
-const orderQrRef = ref<HTMLCanvasElement>()
 
 function setPartQrRef(id: number, el: any) {
   if (el) partQrRefs.value.set(id, el)
@@ -140,22 +136,6 @@ watch(() => props.visible, async (val) => {
     loading.value = true
     selectedIds.value = new Set()
 
-    // 生成入库单看板 QR 码
-    await nextTick()
-    if (orderQrRef.value) {
-      const qrData = JSON.stringify({
-        type: 'inbound-order',
-        orderNo: props.order.orderNo,
-        supplierName: props.order.supplierName,
-        totalQty: totalQty.value,
-        partCount: props.order.details?.length || 0,
-      })
-      await QRCode.toCanvas(orderQrRef.value, qrData, {
-        width: 150, margin: 1,
-        color: { dark: '#000', light: '#fff' },
-      })
-    }
-
     // 加载零件看板（优先从DB，没有则从订单详情生成）
     try {
       kanbans.value = await listKanbansByOrder(props.order.id).then(r => r.data)
@@ -169,7 +149,9 @@ watch(() => props.visible, async (val) => {
         for (const d of props.order.details) {
           const boxCount = d.boxCount || 0
           const capacity = d.packageCapacity || 1
-          for (let seq = 0; seq < boxCount; seq++) {
+          const labelCount = Math.ceil(boxCount)
+          let remaining = capacity * boxCount
+          for (let seq = 0; seq < labelCount; seq++) {
             const dateStr = new Date().toISOString().slice(0, 10)
             const genNo = `R-${dateStr}-${props.order.orderNo}-${d.partCode}C-${seq}`
             kanbans.value.push({
@@ -181,13 +163,16 @@ watch(() => props.visible, async (val) => {
               partCode: d.partCode,
               partName: d.partName,
               supplierName: props.order.supplierName,
-              quantity: capacity,
+              quantity: Math.min(capacity, remaining),
+              originalQty: capacity,
               boxSeq: seq,
               warehouseAreaId: d.warehouseAreaId || 0,
               warehouseAreaName: d.warehouseAreaName || '',
               status: 0,
+              statusText: '待入库',
               createTime: '',
             })
+            remaining -= capacity
           }
         }
       }
@@ -197,15 +182,16 @@ watch(() => props.visible, async (val) => {
       for (const k of kanbans.value) {
         const canvas = partQrRefs.value.get(k.id)
         if (canvas) {
+          // QR数据精简：仅保留扫码必需的4个字段，降低码密度确保手机可扫
           await QRCode.toCanvas(canvas, JSON.stringify({
             kanbanNo: k.kanbanNo,
+            inboundOrderNo: k.inboundOrderNo,
             partCode: k.partCode,
             partName: k.partName,
-            supplierName: k.supplierName,
             quantity: k.quantity,
-            warehouseArea: k.warehouseAreaName,
-            inboundOrderNo: k.inboundOrderNo,
             boxSeq: k.boxSeq,
+            supplierName: k.supplierName,
+            warehouseArea: k.warehouseAreaName,
           }), { width: 130, margin: 1, color: { dark: '#000', light: '#fff' } })
         }
       }
@@ -224,6 +210,12 @@ function selectAll() {
   selectedIds.value = selectedIds.value.size === kanbans.value.length
     ? new Set()
     : new Set(kanbans.value.map(k => k.id))
+}
+
+function quantityBoxes(k: Kanban) {
+  const capacity = Number(k.originalQty || k.quantity || 1)
+  const boxes = capacity > 0 ? Number(k.quantity || 0) / capacity : 0
+  return `${k.quantity}/${Number(boxes.toFixed(2))}箱`
 }
 
 // ========== 打印入库单看板 ==========
@@ -267,7 +259,7 @@ function printSelectedParts() {
           <tr><td class="l">零件名</td><td>${k.partName}</td></tr>
           <tr><td class="l">供应商</td><td>${k.supplierName}</td></tr>
           <tr><td class="l">库区</td><td>${k.warehouseAreaName || '-'}</td></tr>
-          <tr><td class="l">数量</td><td class="q">${k.quantity}</td></tr>
+          <tr><td class="l">数量/箱数</td><td class="q">${quantityBoxes(k)}</td></tr>
           <tr><td class="l">箱号</td><td>C-${k.boxSeq}</td></tr>
         </table>
         <div class="pc-q"><img src="${getPartQrUrl(k.id)}" width="120" height="120" /></div>

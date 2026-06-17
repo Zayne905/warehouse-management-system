@@ -41,9 +41,17 @@
           <el-icon><DataAnalysis /></el-icon>
           <span>库存总览</span>
         </el-menu-item>
+        <el-menu-item index="/inventory/kanban">
+          <el-icon><Postcard /></el-icon>
+          <span>看板信息</span>
+        </el-menu-item>
         <el-menu-item index="/inventory/outbound">
           <el-icon><Upload /></el-icon>
           <span>出库管理</span>
+        </el-menu-item>
+        <el-menu-item index="/inventory/repack">
+          <el-icon><Connection /></el-icon>
+          <span>转包管理</span>
         </el-menu-item>
       </el-sub-menu>
 
@@ -59,6 +67,14 @@
         <el-menu-item index="/system/part">
           <el-icon><Coin /></el-icon>
           <span>零件管理</span>
+        </el-menu-item>
+        <el-menu-item index="/system/supplier">
+          <el-icon><OfficeBuilding /></el-icon>
+          <span>供应商管理</span>
+        </el-menu-item>
+        <el-menu-item index="/system/customer">
+          <el-icon><Avatar /></el-icon>
+          <span>客户管理</span>
         </el-menu-item>
       </el-sub-menu>
     </el-menu>
@@ -77,9 +93,13 @@ import {
   Download,
   Upload,
   DataAnalysis,
+  Connection,
   Setting,
   User,
   Coin,
+  Postcard,
+  OfficeBuilding,
+  Avatar,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()

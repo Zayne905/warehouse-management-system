@@ -87,6 +87,12 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="进度" width="120" align="center">
+          <template #default="{ row }">
+            <span v-if="row.totalPartCount">{{ row.completedPartCount || 0 }}/{{ row.totalPartCount }} 种</span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="170" />
         <el-table-column label="操作" width="310" fixed="right">
           <template #default="{ row }">
@@ -121,7 +127,7 @@
               size="small"
               type="warning"
               link
-              :disabled="row.status === 3"
+              :disabled="!canEdit(row)"
               @click="handleCancel(row)"
             >
               作废

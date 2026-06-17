@@ -15,7 +15,9 @@ public class InboundDetailVO {
     private Long warehouseAreaId;
     private String warehouseAreaName;
     private String batchNo;
-    private Integer boxCount;
+    private BigDecimal boxCount;
     private Integer packageCapacity;
     private Integer lineNo;
+    private Double completionRate;
+    private String completionStatus;
 }

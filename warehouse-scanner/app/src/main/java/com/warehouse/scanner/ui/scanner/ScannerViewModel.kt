@@ -10,15 +10,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-// 看板QR码JSON解析
+// 看板QR码JSON解析（字段可空以兼容缺失或null值的JSON）
 data class KanbanQrData(
-    val kanbanNo: String = "",
-    val partCode: String = "",
-    val partName: String = "",
-    val supplierName: String = "",
+    val kanbanNo: String? = null,
+    val partCode: String? = null,
+    val partName: String? = null,
+    val supplierName: String? = null,
     val quantity: Int = 0,
-    val warehouseArea: String = "",
-    val inboundOrderNo: String = "",
+    val warehouseArea: String? = null,
+    val inboundOrderNo: String? = null,
     val boxSeq: Int = 0
 )
 
@@ -91,7 +91,9 @@ class ScannerViewModel : ViewModel() {
         // 尝试解析为看板JSON
         try {
             val qr = gson.fromJson(trimmed, KanbanQrData::class.java)
-            if (qr.kanbanNo.isNotBlank() && qr.partCode.isNotBlank()) {
+            val kanbanNo = qr.kanbanNo ?: ""
+            val partCode = qr.partCode ?: ""
+            if (kanbanNo.isNotBlank() && partCode.isNotBlank()) {
                 if (_state.value.mode == ScanMode.OUTBOUND) {
                     scanOutbound(qr)
                 } else {
@@ -110,10 +112,10 @@ class ScannerViewModel : ViewModel() {
      */
     private fun scanOutbound(qr: KanbanQrData) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(submitting = true, message = "正在出库 ${qr.partName} ...", error = false)
+            _state.value = _state.value.copy(submitting = true, message = "正在出库 ${qr.partName ?: ""} ...", error = false)
             try {
                 val body: Map<String, Any> = mapOf(
-                    "kanbanNo" to qr.kanbanNo,
+                    "kanbanNo" to (qr.kanbanNo ?: ""),
                     "operatorId" to 1
                 )
                 val res = RetrofitClient.api.scanOutbound(body)
@@ -126,14 +128,14 @@ class ScannerViewModel : ViewModel() {
                             partCode = r.partCode, partName = r.partName,
                             boxScanned = 0, boxTotal = 0, quantity = r.quantity,
                             plannedQty = r.plannedQty ?: 0.0, actualQty = r.actualQty ?: 0.0,
-                            inboundOrderNo = qr.inboundOrderNo, supplierName = qr.supplierName,
-                            warehouseArea = qr.warehouseArea, boxSeq = qr.boxSeq
+                            inboundOrderNo = qr.inboundOrderNo ?: "", supplierName = qr.supplierName ?: "",
+                            warehouseArea = qr.warehouseArea ?: "", boxSeq = qr.boxSeq
                         ),
                         error = false
                     )
                 } else {
                     _state.value = _state.value.copy(submitting = false, error = true,
-                        message = "⚠️ ${res.message}")
+                        message = "出库失败: ${res.message}")
                 }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(submitting = false, error = true,
@@ -147,17 +149,17 @@ class ScannerViewModel : ViewModel() {
      */
     private fun scanKanban(qr: KanbanQrData) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(submitting = true, message = "正在入库 ${qr.partName} ...", error = false)
+            _state.value = _state.value.copy(submitting = true, message = "正在入库 ${qr.partName ?: ""} ...", error = false)
             try {
                 val res = RetrofitClient.api.scanKanban(
                     KanbanScanRequest(
-                        kanbanNo = qr.kanbanNo,
-                        partCode = qr.partCode,
-                        partName = qr.partName,
-                        supplierName = qr.supplierName,
+                        kanbanNo = qr.kanbanNo ?: "",
+                        partCode = qr.partCode ?: "",
+                        partName = qr.partName ?: "",
+                        supplierName = qr.supplierName ?: "",
                         quantity = qr.quantity,
-                        warehouseArea = qr.warehouseArea,
-                        inboundOrderNo = qr.inboundOrderNo,
+                        warehouseArea = qr.warehouseArea ?: "",
+                        inboundOrderNo = qr.inboundOrderNo ?: "",
                         boxSeq = qr.boxSeq,
                         operatorId = 1 // TODO: 使用当前登录用户ID
                     )
@@ -167,7 +169,7 @@ class ScannerViewModel : ViewModel() {
                     _state.value = _state.value.copy(
                         submitting = false,
                         needConfirm = true,
-                        lastScannedKanban = qr.kanbanNo,
+                        lastScannedKanban = qr.kanbanNo ?: "",
                         message = "✅ ${r.partName} C-${r.boxSeq}箱 已入库 (${r.quantity}${r.unit})",
                         progress = ScanProgress(
                             partCode = r.partCode,
@@ -192,19 +194,19 @@ class ScannerViewModel : ViewModel() {
                     _state.value = _state.value.copy(
                         submitting = false, error = true,
                         needConfirm = true,
-                        lastScannedKanban = qr.kanbanNo,
+                        lastScannedKanban = qr.kanbanNo ?: "",
                         message = "⚠️ ${res.message}",
                         progress = ScanProgress(
-                            partCode = qr.partCode,
-                            partName = qr.partName,
+                            partCode = qr.partCode ?: "",
+                            partName = qr.partName ?: "",
                             boxScanned = 0,
                             boxTotal = 0,
                             quantity = qr.quantity,
                             unit = "",
                             boxSeq = qr.boxSeq,
-                            inboundOrderNo = qr.inboundOrderNo,
-                            supplierName = qr.supplierName,
-                            warehouseArea = qr.warehouseArea
+                            inboundOrderNo = qr.inboundOrderNo ?: "",
+                            supplierName = qr.supplierName ?: "",
+                            warehouseArea = qr.warehouseArea ?: ""
                         )
                     )
                 }
