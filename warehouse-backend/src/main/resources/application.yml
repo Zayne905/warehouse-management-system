@@ -20,3 +20,23 @@ mybatis-plus:
 jwt:
   secret: d2FyZWhvdXNlLWp3dC1zZWNyZXQta2V5LWZvci1oczI1Ni1hbGdvcml0aG0tMTIzNDU2Nzg5MA==
   expiration: 86400000
+
+# AI / LLM configuration
+ai:
+  llm:
+    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api-key: ${AI_API_KEY:sk-8876578554a2421db97212635ed25597}
+    model: qwen-plus
+    # Max tokens per response
+    max-tokens: 4096
+    # Temperature (0-2), lower = more deterministic
+    temperature: 0.7
+    # System prompt for the AI warehouse manager role
+    system-prompt: |
+      你是仓储管理系统的AI助手"小仓"，负责帮助用户查询库存、订单、看板等信息。
+      你可以使用提供的工具函数来查询实时数据。回答时：
+      - 使用中文回复
+      - 数据要准确，基于工具返回的实际数据
+      - 如果工具返回的数据不足以回答问题，如实告知用户
+      - 对数据进行简要解读和分析，不要只罗列数字
+      - 当用户问及趋势或汇总时，优先使用分析类工具
