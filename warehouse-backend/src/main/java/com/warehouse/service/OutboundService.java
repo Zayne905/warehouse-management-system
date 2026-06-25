@@ -627,7 +627,7 @@ public class OutboundService {
 
                 // 生成余量新看板
                 Kanban remainderKanban = new Kanban();
-                remainderKanban.setKanbanNo(kanban.getKanbanNo() + "-OB-" + System.currentTimeMillis() % 100000);
+                remainderKanban.setKanbanNo(kanban.getKanbanNo() + "-OB-" + System.nanoTime() % 1_000_000);
                 remainderKanban.setInboundOrderId(kanban.getInboundOrderId());
                 remainderKanban.setInboundOrderNo(kanban.getInboundOrderNo());
                 remainderKanban.setPartId(kanban.getPartId());
@@ -640,6 +640,8 @@ public class OutboundService {
                 remainderKanban.setWarehouseAreaId(kanban.getWarehouseAreaId());
                 remainderKanban.setWarehouseAreaName(kanban.getWarehouseAreaName());
                 remainderKanban.setStatus(Kanban.STATUS_AVAILABLE);
+                // 生成二维码内容
+                remainderKanban.setQrContent(buildRemainderQr(remainderKanban));
                 kanbanMapper.insert(remainderKanban);
 
                 // 自动创建入库单记录余量
@@ -867,6 +869,24 @@ public class OutboundService {
             case 2: return "已出库";
             case 3: return "作废";
             default: return "未知";
+        }
+    }
+
+    /** 为溢出余量看板构建二维码JSON（与其他看板格式一致） */
+    private String buildRemainderQr(Kanban k) {
+        try {
+            java.util.Map<String, Object> qr = new java.util.LinkedHashMap<>();
+            qr.put("kanbanNo", k.getKanbanNo());
+            qr.put("inboundOrderNo", k.getInboundOrderNo() != null ? k.getInboundOrderNo() : "");
+            qr.put("partCode", k.getPartCode());
+            qr.put("partName", k.getPartName());
+            qr.put("quantity", k.getQuantity());
+            qr.put("boxSeq", k.getBoxSeq());
+            qr.put("supplierName", k.getSupplierName());
+            qr.put("warehouseArea", k.getWarehouseAreaName());
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(qr);
+        } catch (Exception e) {
+            return "{\"kanbanNo\":\"" + k.getKanbanNo() + "\"}";
         }
     }
 }

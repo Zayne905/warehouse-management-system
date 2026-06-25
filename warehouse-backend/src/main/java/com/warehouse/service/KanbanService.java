@@ -56,21 +56,74 @@ public class KanbanService {
         this.warehouseAreaService = warehouseAreaService;
     }
 
+    /**
+     * 生成看板编号。使用订单创建日期（而非当天日期），确保编号永久稳定。
+     * 格式: R-yyyy-MM-dd-{orderNo}-{partCode}C-{boxSeq}
+     */
     private String generateKanbanNo(InboundOrder order, Part part, int boxSeq) {
-        String dateStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        String dateStr;
+        if (order.getCreateTime() != null) {
+            dateStr = order.getCreateTime().toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        } else {
+            dateStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        }
         return String.format("R-%s-%s-%sC-%d", dateStr, order.getOrderNo(), part.getCode(), boxSeq);
     }
 
     /**
-     *入库看板生成和尾箱容量
+     * 构建看板二维码JSON内容。与前端扫描器约定的字段完全一致。
+     * 此内容在看板创建时生成并持久化，全生命周期不可变。
+     */
+    private String buildQrContent(Kanban kanban) {
+        Map<String, Object> qr = new LinkedHashMap<>();
+        qr.put("kanbanNo", kanban.getKanbanNo());
+        qr.put("inboundOrderNo", kanban.getInboundOrderNo());
+        qr.put("partCode", kanban.getPartCode());
+        qr.put("partName", kanban.getPartName());
+        qr.put("quantity", kanban.getQuantity());
+        qr.put("boxSeq", kanban.getBoxSeq());
+        qr.put("supplierName", kanban.getSupplierName());
+        qr.put("warehouseArea", kanban.getWarehouseAreaName());
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(qr);
+        } catch (Exception e) {
+            // fallback: manual JSON
+            return "{\"kanbanNo\":\"" + kanban.getKanbanNo() + "\","
+                    + "\"inboundOrderNo\":\"" + (kanban.getInboundOrderNo() != null ? kanban.getInboundOrderNo() : "") + "\","
+                    + "\"partCode\":\"" + (kanban.getPartCode() != null ? kanban.getPartCode() : "") + "\","
+                    + "\"partName\":\"" + (kanban.getPartName() != null ? kanban.getPartName() : "") + "\","
+                    + "\"quantity\":" + (kanban.getQuantity() != null ? kanban.getQuantity() : 0) + ","
+                    + "\"boxSeq\":" + (kanban.getBoxSeq() != null ? kanban.getBoxSeq() : 0) + ","
+                    + "\"supplierName\":\"" + (kanban.getSupplierName() != null ? kanban.getSupplierName() : "") + "\","
+                    + "\"warehouseArea\":\"" + (kanban.getWarehouseAreaName() != null ? kanban.getWarehouseAreaName() : "") + "\"}";
+        }
+    }
+
+    /**
+     * 入库看板生成：增量更新，不删除已有看板。
+     * - 已有看板保留原 kanbanNo，已扫描/已使用的不受影响
+     * - 新增箱数为已有看板补建新看板
+     * - 减少的箱仅删除状态为 PENDING_INBOUND 且无扫描记录的
      */
     @Transactional
     public List<Kanban> generateForOrder(Long orderId, List<InboundDetailDTO> details) {
         InboundOrder order = inboundOrderMapper.selectById(orderId);
         if (order == null) throw new RuntimeException("入库单不存在");
 
-        kanbanMapper.delete(new QueryWrapper<Kanban>().eq("inbound_order_id", orderId));
+        // 获取已有看板，按 (partId, boxSeq) 分组
+        List<Kanban> existingKb = kanbanMapper.selectList(
+                new QueryWrapper<Kanban>().eq("inbound_order_id", orderId).orderByAsc("box_seq"));
+        // key: partId -> 该零件的已有看板列表 (按 boxSeq 排序)
+        Map<Long, List<Kanban>> existingByPart = new LinkedHashMap<>();
+        for (Kanban kb : existingKb) {
+            Long pid = kb.getPartId();
+            if (pid == null) continue;
+            existingByPart.computeIfAbsent(pid, k -> new ArrayList<>()).add(kb);
+        }
+
         List<Kanban> result = new ArrayList<>();
+        // 记录本次需要的看板 key: partId -> 需要的 seeq 集合
+        Map<Long, java.util.Set<Integer>> neededSeqs = new HashMap<>();
 
         for (InboundDetailDTO dto : details) {
             Part part = partService.getById(dto.getPartId());
@@ -81,42 +134,85 @@ public class KanbanService {
 
             BigDecimal capacity = BigDecimal.valueOf(part.getPackageCapacity() != null ? part.getPackageCapacity() : 1);
             BigDecimal totalQty = dto.getPlannedQty() != null ? dto.getPlannedQty() : capacity.multiply(boxCount);
-            // ***向上取整：例如1.5箱需要打印和创建2个看板。
             int labelCount = boxCount.setScale(0, RoundingMode.CEILING).intValue();
             BigDecimal remaining = totalQty;
 
+            neededSeqs.computeIfAbsent(dto.getPartId(), k -> new java.util.HashSet<>());
+
             for (int seq = 0; seq < labelCount && remaining.compareTo(BigDecimal.ZERO) > 0; seq++) {
-                /**
-                 * 前面的箱取完整容量，尾箱只取剩余数量。
-                 * 举例：包装容量为50、入库75件时，结果为：
-                 * 看板1：quantity=50，originalQty=50，显示50/1箱
-                 * 看板2：quantity=25，originalQty=50，显示25/0.5箱
-                 */
+                neededSeqs.get(dto.getPartId()).add(seq);
                 BigDecimal boxQty = remaining.min(capacity);
-                Kanban kanban = new Kanban();
-                kanban.setKanbanNo(generateKanbanNo(order, part, seq));
-                kanban.setInboundOrderId(orderId);
-                kanban.setInboundOrderNo(order.getOrderNo());
-                kanban.setPartId(part.getId());
-                kanban.setPartCode(part.getCode());
-                kanban.setPartName(part.getName());
-                kanban.setSupplierName(order.getSupplierName());
-                kanban.setQuantity(boxQty);// ***当前箱实际数量
-                kanban.setOriginalQty(capacity);// ***最大箱容量
-                kanban.setBoxSeq(seq);
-                Long areaId = dto.getWarehouseAreaId() != null ? dto.getWarehouseAreaId() : part.getWarehouseAreaId();
-                kanban.setWarehouseAreaId(areaId);
-                if (areaId != null) {
-                    WarehouseArea area = warehouseAreaService.getById(areaId);
-                    kanban.setWarehouseAreaName(area != null ? area.getName() : null);
+
+                // 检查该 partId + seq 是否已有看板
+                Kanban existing = null;
+                List<Kanban> partKbs = existingByPart.get(dto.getPartId());
+                if (partKbs != null) {
+                    for (Kanban kb : partKbs) {
+                        if (kb.getBoxSeq() != null && kb.getBoxSeq() == seq) {
+                            existing = kb;
+                            break;
+                        }
+                    }
                 }
-                // ***创建单据时只生成待入库看板，不直接计入库存。
-                kanban.setStatus(Kanban.STATUS_PENDING_INBOUND);
-                kanbanMapper.insert(kanban);
-                result.add(kanban);
+
+                if (existing != null) {
+                    // 已有看板：更新数量和库区信息，但保持 kanbanNo 不变
+                    existing.setQuantity(boxQty);
+                    existing.setOriginalQty(capacity);
+                    existing.setSupplierName(order.getSupplierName());
+                    Long areaId = dto.getWarehouseAreaId() != null ? dto.getWarehouseAreaId() : part.getWarehouseAreaId();
+                    existing.setWarehouseAreaId(areaId);
+                    if (areaId != null) {
+                        WarehouseArea area = warehouseAreaService.getById(areaId);
+                        existing.setWarehouseAreaName(area != null ? area.getName() : null);
+                    }
+                    kanbanMapper.updateById(existing);
+                    result.add(existing);
+                } else {
+                    // 新看板
+                    Kanban kanban = new Kanban();
+                    kanban.setKanbanNo(generateKanbanNo(order, part, seq));
+                    kanban.setInboundOrderId(orderId);
+                    kanban.setInboundOrderNo(order.getOrderNo());
+                    kanban.setPartId(part.getId());
+                    kanban.setPartCode(part.getCode());
+                    kanban.setPartName(part.getName());
+                    kanban.setSupplierName(order.getSupplierName());
+                    kanban.setQuantity(boxQty);
+                    kanban.setOriginalQty(capacity);
+                    kanban.setBoxSeq(seq);
+                    Long areaId = dto.getWarehouseAreaId() != null ? dto.getWarehouseAreaId() : part.getWarehouseAreaId();
+                    kanban.setWarehouseAreaId(areaId);
+                    if (areaId != null) {
+                        WarehouseArea area = warehouseAreaService.getById(areaId);
+                        kanban.setWarehouseAreaName(area != null ? area.getName() : null);
+                    }
+                    kanban.setStatus(Kanban.STATUS_PENDING_INBOUND);
+                    kanban.setQrContent(buildQrContent(kanban));
+                    kanbanMapper.insert(kanban);
+                    result.add(kanban);
+                }
                 remaining = remaining.subtract(boxQty);
             }
         }
+
+        // 删除本次不需要的看板（仅限 PENDING_INBOUND 且无扫描记录的）
+        for (Kanban kb : existingKb) {
+            if (kb.getPartId() == null) continue;
+            java.util.Set<Integer> needed = neededSeqs.get(kb.getPartId());
+            if (needed == null || !needed.contains(kb.getBoxSeq() != null ? kb.getBoxSeq() : -1)) {
+                // 只删除待入库状态的
+                if (kb.getStatus() != null && kb.getStatus() == Kanban.STATUS_PENDING_INBOUND) {
+                    // 检查是否有扫描记录
+                    Long scanCount = scanRecordMapper.selectCount(
+                            new QueryWrapper<ScanRecord>().eq("kanban_no", kb.getKanbanNo()));
+                    if (scanCount == null || scanCount == 0) {
+                        kanbanMapper.deleteById(kb.getId());
+                    }
+                }
+            }
+        }
+
         return result;
     }
 
@@ -165,6 +261,7 @@ public class KanbanService {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", kanban.getId());
             row.put("kanbanNo", kanban.getKanbanNo());
+            row.put("qrContent", kanban.getQrContent());
             row.put("inboundOrderNo", kanban.getInboundOrderNo());
             row.put("outboundOrderNo", kanban.getOutboundOrderNo());
             row.put("partCode", kanban.getPartCode());
@@ -211,6 +308,7 @@ public class KanbanService {
 
         Map<String, Object> info = new LinkedHashMap<>();
         info.put("kanbanNo", kanban.getKanbanNo());
+        info.put("qrContent", kanban.getQrContent());
         info.put("inboundOrderNo", kanban.getInboundOrderNo());
         info.put("outboundOrderNo", kanban.getOutboundOrderNo());
         info.put("partCode", kanban.getPartCode());

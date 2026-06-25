@@ -66,10 +66,15 @@ public class RepackService {
         return todayPrefix + String.format("%03d", seq);
     }
 
+    /**
+     * 生成转包目标看板编号。使用 nanoTime 保证线程安全和高并发下唯一。
+     */
     private String generateTargetKanbanNo(String orderNo, String partCode) {
         String dateStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
         String prefix = "R-" + dateStr + "-" + orderNo + "-" + partCode + "C-";
-        return prefix + kanbanMapper.selectCount(new QueryWrapper<Kanban>().likeRight("kanban_no", prefix));
+        // 使用纳秒时间戳后缀，避免 selectCount 竞态条件
+        long suffix = System.nanoTime() % 1_000_000;
+        return prefix + suffix;
     }
 
     // ==================== 创建转包单（必须指定零件+库区） ====================
@@ -375,7 +380,27 @@ public class RepackService {
         t.setBoxSeq(0);
         t.setWarehouseAreaId(source.getWarehouseAreaId()); t.setWarehouseAreaName(source.getWarehouseAreaName());
         t.setStatus(Kanban.STATUS_AVAILABLE);
+        // 生成并持久化二维码内容
+        t.setQrContent(buildKanbanQr(t));
         return t;
+    }
+
+    /** 构建看板二维码JSON（与 KanbanService 格式一致） */
+    private String buildKanbanQr(Kanban k) {
+        try {
+            java.util.Map<String, Object> qr = new java.util.LinkedHashMap<>();
+            qr.put("kanbanNo", k.getKanbanNo());
+            qr.put("inboundOrderNo", k.getInboundOrderNo() != null ? k.getInboundOrderNo() : "");
+            qr.put("partCode", k.getPartCode());
+            qr.put("partName", k.getPartName());
+            qr.put("quantity", k.getQuantity());
+            qr.put("boxSeq", k.getBoxSeq());
+            qr.put("supplierName", k.getSupplierName());
+            qr.put("warehouseArea", k.getWarehouseAreaName());
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(qr);
+        } catch (Exception e) {
+            return "{\"kanbanNo\":\"" + k.getKanbanNo() + "\",\"partCode\":\"" + (k.getPartCode() != null ? k.getPartCode() : "") + "\"}";
+        }
     }
 
     private Kanban reloadAndRecheck(RepackOrderDetail detail) {

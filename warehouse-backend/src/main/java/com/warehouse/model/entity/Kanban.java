@@ -14,6 +14,7 @@ public class Kanban {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String kanbanNo;
+    private String qrContent;        // 二维码JSON内容(创建时生成，全生命周期不可变)
     private Long inboundOrderId;
     private String inboundOrderNo;
     private Long outboundOrderId;

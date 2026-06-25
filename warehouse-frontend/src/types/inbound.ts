@@ -3,21 +3,18 @@ export const InboundStatus = {
   PENDING: 0,       // 未入库
   PARTIAL: 1,       // 部分入库
   COMPLETED: 2,     // 已入库
-  CANCELLED: 3,     // 作废
 } as const
 
 export const InboundStatusText: Record<number, string> = {
   0: '未入库',
   1: '部分入库',
   2: '已入库',
-  3: '作废',
 }
 
 export const InboundStatusTagType: Record<number, string> = {
   0: 'info',
   1: 'warning',
   2: 'success',
-  3: 'danger',
 }
 
 // 入库单 VO

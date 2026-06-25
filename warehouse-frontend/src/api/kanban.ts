@@ -3,6 +3,7 @@ import request from './request'
 export interface Kanban {
   id: number
   kanbanNo: string
+  qrContent?: string   // 二维码JSON内容(创建时固化，全生命周期不变)
   inboundOrderId: number
   inboundOrderNo: string
   outboundOrderId?: number

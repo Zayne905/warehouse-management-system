@@ -3,8 +3,7 @@ package com.warehouse.model.enums;
 public enum InboundStatus {
     PENDING(0, "未入库"),
     PARTIAL(1, "部分入库"),
-    COMPLETED(2, "已入库"),
-    CANCELLED(3, "作废");
+    COMPLETED(2, "已入库");
 
     private final int code;
     private final String label;
@@ -32,7 +31,7 @@ public enum InboundStatus {
     }
 
     public static boolean canEdit(int status, boolean isAdmin) {
-        if (status == CANCELLED.code || status == COMPLETED.code) {
+        if (status == COMPLETED.code) {
             return false;
         }
         return true;

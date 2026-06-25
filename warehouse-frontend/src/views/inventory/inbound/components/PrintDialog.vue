@@ -136,54 +136,24 @@ watch(() => props.visible, async (val) => {
     loading.value = true
     selectedIds.value = new Set()
 
-    // 加载零件看板（优先从DB，没有则从订单详情生成）
+    // 从数据库加载看板（入库单保存时后端已自动生成）
     try {
       kanbans.value = await listKanbansByOrder(props.order.id).then(r => r.data)
-    } catch { /* ignore */ }
+      if (kanbans.value.length === 0) {
+        ElMessage.warning('暂无看板数据，请确认入库单已保存')
+      }
+    } catch (e: any) {
+      ElMessage.error('加载看板失败: ' + (e?.message || '未知错误'))
+    }
 
     try {
-      // DB没有看板数据时，从订单详情直接生成
-      if (kanbans.value.length === 0 && props.order.details) {
-        let genId = -1
-        kanbans.value = []
-        for (const d of props.order.details) {
-          const boxCount = d.boxCount || 0
-          const capacity = d.packageCapacity || 1
-          const labelCount = Math.ceil(boxCount)
-          let remaining = capacity * boxCount
-          for (let seq = 0; seq < labelCount; seq++) {
-            const dateStr = new Date().toISOString().slice(0, 10)
-            const genNo = `R-${dateStr}-${props.order.orderNo}-${d.partCode}C-${seq}`
-            kanbans.value.push({
-              id: genId--,
-              kanbanNo: genNo,
-              inboundOrderId: props.order.id,
-              inboundOrderNo: props.order.orderNo,
-              partId: d.partId,
-              partCode: d.partCode,
-              partName: d.partName,
-              supplierName: props.order.supplierName,
-              quantity: Math.min(capacity, remaining),
-              originalQty: capacity,
-              boxSeq: seq,
-              warehouseAreaId: d.warehouseAreaId || 0,
-              warehouseAreaName: d.warehouseAreaName || '',
-              status: 0,
-              statusText: '待入库',
-              createTime: '',
-            })
-            remaining -= capacity
-          }
-        }
-      }
-
       selectedIds.value = new Set(kanbans.value.map(k => k.id))
       await nextTick()
       for (const k of kanbans.value) {
         const canvas = partQrRefs.value.get(k.id)
         if (canvas) {
-          // QR数据精简：仅保留扫码必需的4个字段，降低码密度确保手机可扫
-          await QRCode.toCanvas(canvas, JSON.stringify({
+          // 使用数据库存储的 qrContent，若无则前端组装兜底
+          const qrData = k.qrContent || JSON.stringify({
             kanbanNo: k.kanbanNo,
             inboundOrderNo: k.inboundOrderNo,
             partCode: k.partCode,
@@ -192,7 +162,8 @@ watch(() => props.visible, async (val) => {
             boxSeq: k.boxSeq,
             supplierName: k.supplierName,
             warehouseArea: k.warehouseAreaName,
-          }), { width: 130, margin: 1, color: { dark: '#000', light: '#fff' } })
+          })
+          await QRCode.toCanvas(canvas, qrData, { width: 130, margin: 1, color: { dark: '#000', light: '#fff' } })
         }
       }
     } catch { /* ignore */ }

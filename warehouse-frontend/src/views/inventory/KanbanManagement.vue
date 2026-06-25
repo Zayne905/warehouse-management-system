@@ -146,7 +146,20 @@ async function openDetail(row: Kanban) {
     const res = await getKanbanLifecycleApi(row.kanbanNo)
     detail.value = res.data
     await nextTick()
-    if (qrRef.value) await QRCode.toCanvas(qrRef.value, row.kanbanNo, { width: 160, margin: 1 })
+    if (qrRef.value) {
+      // 优先使用数据库存储的 qrContent（创建时固化，全生命周期不变）
+      const qrData = row.qrContent || JSON.stringify({
+        kanbanNo: row.kanbanNo,
+        inboundOrderNo: row.inboundOrderNo,
+        partCode: row.partCode,
+        partName: row.partName,
+        quantity: row.quantity,
+        boxSeq: row.boxSeq,
+        supplierName: row.supplierName,
+        warehouseArea: row.warehouseAreaName,
+      })
+      await QRCode.toCanvas(qrRef.value, qrData, { width: 160, margin: 1 })
+    }
   } catch (e: any) {
     ElMessage.error(e?.message || '加载看板详情失败')
   } finally {

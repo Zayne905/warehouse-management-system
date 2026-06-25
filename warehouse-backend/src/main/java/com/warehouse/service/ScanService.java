@@ -79,10 +79,6 @@ public class ScanService {
         if (order == null) {
             throw new RuntimeException("入库单不存在");
         }
-        if (order.getStatus() == InboundStatus.CANCELLED.getCode()) {
-            throw new RuntimeException("已作废的入库单不可扫描");
-        }
-
         // 查找明细
         InboundOrderDetail detail = findDetail(dto.getInboundOrderId(), dto.getPartCode());
         if (detail == null) {
@@ -265,23 +261,35 @@ public class ScanService {
             throw new RuntimeException("该箱已入库，看板号: " + dto.getKanbanNo());
         }
 
-        // 2. 查找入库单
+        // 2. 查找并校验看板状态与归属
+        Kanban kanban = kanbanMapper.selectOne(
+                new QueryWrapper<Kanban>().eq("kanban_no", dto.getKanbanNo()));
+        if (kanban != null) {
+            // 校验看板归属：必须属于当前扫描的入库单
+            if (kanban.getInboundOrderNo() != null && !kanban.getInboundOrderNo().equals(dto.getInboundOrderNo())) {
+                throw new RuntimeException("看板[" + dto.getKanbanNo() + "]属于入库单["
+                        + kanban.getInboundOrderNo() + "]，不能扫入当前入库单[" + dto.getInboundOrderNo() + "]");
+            }
+            // 状态校验：只允许待入库状态的看板
+            if (kanban.getStatus() != null && kanban.getStatus() != Kanban.STATUS_PENDING_INBOUND) {
+                throw new RuntimeException("看板[" + dto.getKanbanNo() + "]当前状态为["
+                        + kanban.getStatusText() + "]，不允许入库扫描");
+            }
+        }
+
+        // 3. 查找入库单
         InboundOrder order = inboundOrderMapper.selectOne(
                 new QueryWrapper<InboundOrder>().eq("order_no", dto.getInboundOrderNo()));
         if (order == null) {
             throw new RuntimeException("入库单不存在: " + dto.getInboundOrderNo());
         }
-        if (order.getStatus().equals(InboundStatus.CANCELLED.getCode())) {
-            throw new RuntimeException("入库单已作废，无法入库");
-        }
-
-        // 3. 查找明细行
+        // 4. 查找明细行
         InboundOrderDetail detail = findDetail(order.getId(), dto.getPartCode());
         if (detail == null) {
             throw new RuntimeException("该物料不在入库单明细中");
         }
 
-        // 4. 创建扫描记录
+        // 5. 创建扫描记录
         ScanRecord record = new ScanRecord();
         record.setInboundOrderId(order.getId());
         record.setInboundOrderNo(order.getOrderNo());
@@ -298,23 +306,21 @@ public class ScanService {
         record.setOperatorId(dto.getOperatorId());
         scanRecordMapper.insert(record);
 
-        // 5. 更新明细实入数量（防御性null处理）
+        // 6. 更新明细实入数量（防御性null处理）
         BigDecimal currentQty = detail.getActualQty() != null ? detail.getActualQty() : BigDecimal.ZERO;
         detail.setActualQty(currentQty.add(record.getScanQty()));
         detailMapper.updateById(detail);
 
-        // 6. 更新看板状态
-        Kanban kanban = kanbanMapper.selectOne(
-                new QueryWrapper<Kanban>().eq("kanban_no", dto.getKanbanNo()));
+        // 7. 更新看板状态（此处 kanban 已在步骤2中查询）
         if (kanban != null) {
-            kanban.setStatus(1); // 已入库
+            kanban.setStatus(Kanban.STATUS_AVAILABLE);
             kanbanMapper.updateById(kanban);
         }
 
-        // 7. 重新计算订单状态
+        // 8. 重新计算订单状态
         inboundOrderService.recalculateStatus(order.getId());
 
-        // 8. 返回该零件的收货进度
+        // 9. 返回该零件的收货进度
         int boxTotal = 0;
         if (kanban != null) {
             boxTotal = kanbanMapper.selectCount(

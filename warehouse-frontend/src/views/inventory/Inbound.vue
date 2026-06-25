@@ -44,7 +44,6 @@
             <el-option label="未入库" :value="0" />
             <el-option label="部分入库" :value="1" />
             <el-option label="已入库" :value="2" />
-            <el-option label="作废" :value="3" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -123,16 +122,6 @@
               修改
             </el-button>
             <el-button
-              v-if="authStore.role === 'admin'"
-              size="small"
-              type="warning"
-              link
-              :disabled="!canEdit(row)"
-              @click="handleCancel(row)"
-            >
-              作废
-            </el-button>
-            <el-button
               size="small"
               type="danger"
               link
@@ -173,7 +162,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, Printer } from '@element-plus/icons-vue'
-import { listInboundApi, deleteInboundApi, cancelInboundApi, getInboundDetailApi } from '@/api/inbound'
+import { listInboundApi, deleteInboundApi, getInboundDetailApi } from '@/api/inbound'
 import { getSupplierListApi } from '@/api/supplier'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -295,21 +284,6 @@ async function handleDelete(row: InboundOrderVO) {
     )
     await deleteInboundApi(row.id)
     ElMessage.success('删除成功')
-    fetchData()
-  } catch {
-    // 取消
-  }
-}
-
-async function handleCancel(row: InboundOrderVO) {
-  try {
-    await ElMessageBox.confirm(
-      `确定要作废入库单 ${row.orderNo} 吗？作废后不可恢复。`,
-      '作废确认',
-      { type: 'warning' }
-    )
-    await cancelInboundApi(row.id)
-    ElMessage.success('作废成功')
     fetchData()
   } catch {
     // 取消

@@ -38,7 +38,7 @@
             v-model="row.boxCount"
             :min="0"
             :precision="2"
-            :step="0.1"
+            :step="1"
             controls-position="right"
             size="small"
             style="width: 100%"

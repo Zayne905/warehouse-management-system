@@ -48,7 +48,7 @@ public class OrderTools {
                 Map.of("type", "object",
                         "properties", Map.of(
                                 "supplierName", Map.of("type", "string", "description", "供应商名称，可选"),
-                                "status", Map.of("type", "integer", "description", "状态: 0=未入库 1=部分入库 2=已入库 3=作废，可选"),
+                                "status", Map.of("type", "integer", "description", "状态: 0=未入库 1=部分入库 2=已入库，可选"),
                                 "startDate", Map.of("type", "string", "description", "开始日期 yyyy-MM-dd，可选"),
                                 "endDate", Map.of("type", "string", "description", "结束日期 yyyy-MM-dd，可选"),
                                 "limit", Map.of("type", "integer", "description", "返回数量限制，默认20")
@@ -79,7 +79,6 @@ public class OrderTools {
                 case 0 -> "未入库";
                 case 1 -> "部分入库";
                 case 2 -> "已入库";
-                case 3 -> "作废";
                 default -> "未知";
             };
         } else {

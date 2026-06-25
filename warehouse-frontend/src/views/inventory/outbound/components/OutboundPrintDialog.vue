@@ -100,7 +100,7 @@ watch(() => props.visible, async (val) => {
     const canvas = qrCanvasRefs.value.get(k.id)
     if (canvas) {
       try {
-        await QRCode.toCanvas(canvas, JSON.stringify({
+        const qrData = k.qrContent || JSON.stringify({
           kanbanNo: k.kanbanNo,
           inboundOrderNo: k.inboundOrderNo,
           partCode: k.partCode,
@@ -109,7 +109,8 @@ watch(() => props.visible, async (val) => {
           boxSeq: k.boxSeq,
           supplierName: k.supplierName,
           warehouseArea: k.warehouseAreaName,
-        }), { width: 130, margin: 1, color: { dark: '#000', light: '#fff' } })
+        })
+        await QRCode.toCanvas(canvas, qrData, { width: 130, margin: 1, color: { dark: '#000', light: '#fff' } })
       } catch { /* ignore */ }
     }
   }
