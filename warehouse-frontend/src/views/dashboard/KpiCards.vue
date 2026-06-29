@@ -20,7 +20,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
-  Download, Upload, Box, List, DataLine, Clock
+  Download, Upload, Box, List, DataLine, Clock, WarningFilled, CircleCloseFilled
 } from '@element-plus/icons-vue'
 import type { KpiData } from '@/api/analytics'
 
@@ -68,6 +68,20 @@ const cards = computed(() => {
       bg: '#fff1f0',
     },
     {
+      key: 'lowStock',
+      label: '低储预警',
+      value: d?.lowStockCount ?? '-',
+      icon: WarningFilled,
+      bg: '#fff0f0',
+    },
+    {
+      key: 'highStock',
+      label: '高储预警',
+      value: d?.highStockCount ?? '-',
+      icon: CircleCloseFilled,
+      bg: '#fff7e6',
+    },
+    {
       key: 'monthTotal',
       label: '本月订单',
       value: d ? (d.monthInbound + d.monthOutbound) : '-',
@@ -81,13 +95,13 @@ const cards = computed(() => {
 <style scoped>
 .kpi-row {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
 
 @media (max-width: 1400px) {
   .kpi-row {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 

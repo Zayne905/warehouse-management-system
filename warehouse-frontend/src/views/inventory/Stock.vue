@@ -39,6 +39,7 @@
         stripe
         :default-sort="{ prop: 'totalStock', order: 'descending' }"
         @expand-change="loadKanbans"
+        :row-class-name="rowClassName"
       >
         <el-table-column type="expand">
           <template #default="{ row }">
@@ -133,6 +134,26 @@
         <el-table-column prop="totalStock" label="库存总量" width="110" align="center" sortable="custom">
           <template #default="{ row }">
             <span class="stock-qty">{{ row.totalStock }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="isLowStock(row)" type="danger" size="small" effect="dark">低储</el-tag>
+            <el-tag v-else-if="isHighStock(row)" type="warning" size="small" effect="dark">高储</el-tag>
+            <el-tag v-else-if="hasThreshold(row)" type="success" size="small" effect="plain">正常</el-tag>
+            <span v-else class="text-hint">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="最低储备" width="85" align="center">
+          <template #default="{ row }">
+            <span v-if="row.minStock">{{ row.minStock }}</span>
+            <span v-else class="text-hint">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="最高储备" width="85" align="center">
+          <template #default="{ row }">
+            <span v-if="row.maxStock">{{ row.maxStock }}</span>
+            <span v-else class="text-hint">-</span>
           </template>
         </el-table-column>
         <el-table-column label="库区分布" min-width="200">
@@ -338,6 +359,30 @@ async function doBatchUnblock(partId: number) {
   }
 }
 
+// ============ 高低储状态判断 ============
+
+function isLowStock(row: InventoryVO): boolean {
+  const min = row.minStock ?? 0
+  const stock = Number(row.totalStock ?? 0)
+  return min > 0 && stock <= min
+}
+
+function isHighStock(row: InventoryVO): boolean {
+  const max = row.maxStock ?? 0
+  const stock = Number(row.totalStock ?? 0)
+  return max > 0 && stock >= max
+}
+
+function hasThreshold(row: InventoryVO): boolean {
+  return (row.minStock ?? 0) > 0 || (row.maxStock ?? 0) > 0
+}
+
+function rowClassName({ row }: { row: InventoryVO }) {
+  if (isLowStock(row)) return 'row-low-stock'
+  if (isHighStock(row)) return 'row-high-stock'
+  return ''
+}
+
 onMounted(async () => {
   const areas = await getAreaListApi()
   areaList.value = areas.data || []
@@ -365,5 +410,17 @@ onMounted(async () => {
 .selection-hint {
   color: #909399;
   font-size: 13px;
+}
+
+.text-hint {
+  color: #c0c4cc;
+}
+
+:deep(.row-low-stock) {
+  background-color: #fef0f0 !important;
+}
+
+:deep(.row-high-stock) {
+  background-color: #fdf6ec !important;
 }
 </style>

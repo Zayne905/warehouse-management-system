@@ -5,30 +5,33 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.warehouse.mapper.*;
 import com.warehouse.model.dto.InventoryVO;
 import com.warehouse.model.entity.*;
+import com.warehouse.service.AnalyticsService;
 import com.warehouse.service.InventoryService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
- * Inventory and stock query tools.
+ * Inventory and stock query tools — including threshold-based alerts.
  */
 @Component
 public class InventoryTools {
 
     private final ToolRegistry registry;
     private final InventoryService inventoryService;
+    private final AnalyticsService analyticsService;
     private final KanbanMapper kanbanMapper;
     private final PartMapper partMapper;
     private final ObjectMapper objectMapper;
 
     public InventoryTools(ToolRegistry registry, InventoryService inventoryService,
+                          AnalyticsService analyticsService,
                           KanbanMapper kanbanMapper, PartMapper partMapper,
                           ObjectMapper objectMapper) {
         this.registry = registry;
         this.inventoryService = inventoryService;
+        this.analyticsService = analyticsService;
         this.kanbanMapper = kanbanMapper;
         this.partMapper = partMapper;
         this.objectMapper = objectMapper;
@@ -45,15 +48,25 @@ public class InventoryTools {
                         )),
                 this::queryInventory);
 
-        // 2. get_low_stock_alerts - 低库存预警
-        registry.register("get_low_stock_alerts", "获取低库存预警列表。返回当前库存数量低于阈值的零件清单。",
-                Map.of("type", "object",
-                        "properties", Map.of(
-                                "threshold", Map.of("type", "integer", "description", "库存预警阈值，默认10，不传则使用默认值")
-                        )),
+        // 2. get_low_stock_alerts - 低库存预警（基于每物料配置的最低储备阈值）
+        registry.register("get_low_stock_alerts",
+                "获取低储预警列表。返回库存数量低于该物料「最低储备」阈值的零件清单。使用每物料自身配置的minStock阈值，而非固定值。",
+                Map.of("type", "object", "properties", Map.of()),
                 this::getLowStockAlerts);
 
-        // 3. get_inventory_distribution - 库区库存分布
+        // 3. get_high_stock_alerts - 高库存预警（基于每物料配置的最高储备阈值）
+        registry.register("get_high_stock_alerts",
+                "获取高储预警列表。返回库存数量高于该物料「最高储备」阈值的零件清单。使用每物料自身配置的maxStock阈值。",
+                Map.of("type", "object", "properties", Map.of()),
+                this::getHighStockAlerts);
+
+        // 4. get_inventory_alerts - 综合预警（同时返回低储和高储）
+        registry.register("get_inventory_alerts",
+                "获取全部库存预警摘要。同时返回低储预警和高储预警的零件数量和明细列表。当用户问「库存预警」「哪些零件需要补货」「库存是否正常」时优先使用此工具。",
+                Map.of("type", "object", "properties", Map.of()),
+                this::getInventoryAlerts);
+
+        // 5. get_inventory_distribution - 库区库存分布
         registry.register("get_inventory_distribution", "获取各库区的库存分布概览，显示每个库区的零件种类数和库存总量。",
                 Map.of("type", "object", "properties", Map.of()),
                 args -> getInventoryDistribution());
@@ -76,37 +89,86 @@ public class InventoryTools {
         }
     }
 
+    /**
+     * 低储预警 — 使用每物料配置的 minStock 阈值。
+     * 当前库存 ≤ minStock 且 minStock > 0 时触发。
+     */
     private String getLowStockAlerts(String argsJson) {
         try {
-            Map<String, Object> args = objectMapper.readValue(argsJson, new TypeReference<>() {});
-            int threshold = args.get("threshold") != null
-                    ? ((Number) args.get("threshold")).intValue() : 10;
-
-            List<InventoryVO> all = inventoryService.listStock(null, null);
-            List<InventoryVO> lowStock = all.stream()
-                    .filter(v -> v.getTotalStock().intValue() < threshold)
-                    .toList();
+            Map<String, Object> kpi = analyticsService.getKpiData();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> details = (List<Map<String, Object>>) kpi.get("lowStockDetails");
+            int count = ((Number) kpi.get("lowStockCount")).intValue();
 
             return objectMapper.writeValueAsString(Map.of(
-                    "threshold", threshold,
-                    "alertCount", lowStock.size(),
-                    "items", lowStock
+                    "type", "低储预警",
+                    "description", "库存数量低于该物料最低储备阈值的零件",
+                    "alertCount", count,
+                    "items", details != null ? details : List.of()
             ));
         } catch (Exception e) {
-            return "{\"error\": \"查询低库存预警失败: " + e.getMessage() + "\"}";
+            return "{\"error\": \"查询低储预警失败: " + e.getMessage() + "\"}";
+        }
+    }
+
+    /**
+     * 高储预警 — 使用每物料配置的 maxStock 阈值。
+     * 当前库存 ≥ maxStock 且 maxStock > 0 时触发。
+     */
+    private String getHighStockAlerts(String argsJson) {
+        try {
+            Map<String, Object> kpi = analyticsService.getKpiData();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> details = (List<Map<String, Object>>) kpi.get("highStockDetails");
+            int count = ((Number) kpi.get("highStockCount")).intValue();
+
+            return objectMapper.writeValueAsString(Map.of(
+                    "type", "高储预警",
+                    "description", "库存数量高于该物料最高储备阈值的零件",
+                    "alertCount", count,
+                    "items", details != null ? details : List.of()
+            ));
+        } catch (Exception e) {
+            return "{\"error\": \"查询高储预警失败: " + e.getMessage() + "\"}";
+        }
+    }
+
+    /**
+     * 综合预警 — 一次返回低储和高储的全部信息。
+     */
+    private String getInventoryAlerts(String argsJson) {
+        try {
+            Map<String, Object> kpi = analyticsService.getKpiData();
+            int lowCount = ((Number) kpi.get("lowStockCount")).intValue();
+            int highCount = ((Number) kpi.get("highStockCount")).intValue();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> lowDetails = (List<Map<String, Object>>) kpi.get("lowStockDetails");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> highDetails = (List<Map<String, Object>>) kpi.get("highStockDetails");
+
+            return objectMapper.writeValueAsString(Map.of(
+                    "summary", lowCount == 0 && highCount == 0
+                            ? "✅ 所有零件库存正常，无高低储预警"
+                            : String.format("⚠️ 低储预警 %d 个，高储预警 %d 个", lowCount, highCount),
+                    "lowStockCount", lowCount,
+                    "highStockCount", highCount,
+                    "lowStockDetails", lowDetails != null ? lowDetails : List.of(),
+                    "highStockDetails", highDetails != null ? highDetails : List.of()
+            ));
+        } catch (Exception e) {
+            return "{\"error\": \"查询库存预警失败: " + e.getMessage() + "\"}";
         }
     }
 
     private String getInventoryDistribution() {
         try {
-            // Group kanbans by warehouse area
             var wrapper = new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Kanban>()
                     .in("status", Kanban.STATUS_AVAILABLE, Kanban.STATUS_BLOCKED, Kanban.STATUS_PARTIAL_REPACK);
             List<Kanban> kanbans = kanbanMapper.selectList(wrapper);
 
-            Map<Long, Long> areaPartCount = new java.util.HashMap<>();
-            Map<Long, java.math.BigDecimal> areaQty = new java.util.HashMap<>();
-            Map<Long, String> areaNames = new java.util.HashMap<>();
+            Map<Long, Long> areaPartCount = new HashMap<>();
+            Map<Long, java.math.BigDecimal> areaQty = new HashMap<>();
+            Map<Long, String> areaNames = new HashMap<>();
 
             for (Kanban k : kanbans) {
                 Long areaId = k.getWarehouseAreaId();

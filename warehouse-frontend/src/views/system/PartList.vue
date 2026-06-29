@@ -64,6 +64,12 @@
             <el-option v-for="a in areaList" :key="a.id" :label="a.name" :value="a.id" />
           </el-select>
         </el-form-item>
+        <el-form-item label="最低储备">
+          <el-input-number v-model="form.minStock" :min="0" :precision="0" style="width: 100%" placeholder="0=不启用" />
+        </el-form-item>
+        <el-form-item label="最高储备">
+          <el-input-number v-model="form.maxStock" :min="0" :precision="0" style="width: 100%" placeholder="0=不启用" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -126,7 +132,7 @@ onMounted(() => { fetchData(); fetchAreas(); fetchSuppliers() })
 
 function handleAdd() {
   editingId.value = undefined
-  Object.assign(form, { id: 0, code: '', name: '', spec: '', unit: '', packageCapacity: 1, warehouseAreaId: undefined, supplierId: undefined })
+  Object.assign(form, { id: 0, code: '', name: '', spec: '', unit: '', packageCapacity: 1, warehouseAreaId: undefined, supplierId: undefined, minStock: 0, maxStock: 0 })
   dialogVisible.value = true
 }
 
@@ -135,6 +141,8 @@ function handleEdit(row: Part) {
   Object.assign(form, {
     ...row,
     packageCapacity: row.packageCapacity || 1,
+    minStock: row.minStock ?? 0,
+    maxStock: row.maxStock ?? 0,
   })
   dialogVisible.value = true
 }
@@ -142,6 +150,12 @@ function handleEdit(row: Part) {
 async function handleSave() {
   if (!form.code || !form.name) {
     ElMessage.warning('物料编码和名称不能为空')
+    return
+  }
+  const min = form.minStock ?? 0
+  const max = form.maxStock ?? 0
+  if (min > 0 && max > 0 && min > max) {
+    ElMessage.warning('最低储备不能大于最高储备')
     return
   }
   try {

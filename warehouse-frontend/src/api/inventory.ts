@@ -16,6 +16,8 @@ export interface InventoryVO {
   totalStock: number
   kanbanCount: number        // 在库箱数
   avgQtyPerBox: number        // 箱均数量
+  minStock?: number           // 最低储备阈值
+  maxStock?: number           // 最高储备阈值
   areaStocks: AreaStock[]
 }
 

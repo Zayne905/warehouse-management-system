@@ -1,5 +1,13 @@
 import request from './request'
 
+export interface ThresholdAlert {
+  partId: number
+  partCode: string
+  partName: string
+  currentStock: number
+  threshold: number
+}
+
 export interface KpiData {
   todayInbound: number
   todayOutbound: number
@@ -10,6 +18,10 @@ export interface KpiData {
   totalStock: number
   totalBoxCount: number
   pendingInbound: number
+  lowStockCount: number
+  highStockCount: number
+  lowStockDetails: ThresholdAlert[]
+  highStockDetails: ThresholdAlert[]
 }
 
 export interface TrendItem {

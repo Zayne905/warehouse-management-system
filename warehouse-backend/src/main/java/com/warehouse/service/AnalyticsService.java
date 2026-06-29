@@ -24,6 +24,7 @@ public class AnalyticsService {
     private final OutboundScanMapper outboundScanMapper;
     private final ScanRecordMapper scanRecordMapper;
     private final KanbanMapper kanbanMapper;
+    private final PartMapper partMapper;
 
     public AnalyticsService(InboundOrderMapper inboundOrderMapper,
                             InboundOrderDetailMapper inboundDetailMapper,
@@ -31,7 +32,8 @@ public class AnalyticsService {
                             OutboundOrderDetailMapper outboundDetailMapper,
                             OutboundScanMapper outboundScanMapper,
                             ScanRecordMapper scanRecordMapper,
-                            KanbanMapper kanbanMapper) {
+                            KanbanMapper kanbanMapper,
+                            PartMapper partMapper) {
         this.inboundOrderMapper = inboundOrderMapper;
         this.inboundDetailMapper = inboundDetailMapper;
         this.outboundOrderMapper = outboundOrderMapper;
@@ -39,6 +41,7 @@ public class AnalyticsService {
         this.outboundScanMapper = outboundScanMapper;
         this.scanRecordMapper = scanRecordMapper;
         this.kanbanMapper = kanbanMapper;
+        this.partMapper = partMapper;
     }
 
     /**
@@ -190,6 +193,73 @@ public class AnalyticsService {
         kpi.put("totalStock", todaySummary.get("totalStock"));
         kpi.put("totalBoxCount", todaySummary.get("totalBoxCount"));
         kpi.put("pendingInbound", todaySummary.get("inboundPendingCount"));
+
+        // High/Low stock threshold computation
+        computeThresholdAlerts(kpi);
+
         return kpi;
+    }
+
+    /**
+     * Compute high/low stock alert counts and details from per-part thresholds.
+     */
+    private void computeThresholdAlerts(Map<String, Object> kpi) {
+        // 1. Load all parts that have thresholds configured
+        List<Part> allParts = partMapper.selectList(null);
+        Map<Long, Part> partMap = new HashMap<>();
+        for (Part p : allParts) {
+            partMap.put(p.getId(), p);
+        }
+
+        // 2. Aggregate current stock per part from active kanbans
+        QueryWrapper<Kanban> inventoryQw = new QueryWrapper<>();
+        inventoryQw.in("status", Kanban.STATUS_AVAILABLE, Kanban.STATUS_BLOCKED, Kanban.STATUS_PARTIAL_REPACK);
+        List<Kanban> activeKanbans = kanbanMapper.selectList(inventoryQw);
+
+        Map<Long, Integer> partStock = new HashMap<>();
+        for (Kanban k : activeKanbans) {
+            Long pid = k.getPartId();
+            int qty = k.getQuantity() != null ? k.getQuantity().intValue() : 0;
+            partStock.merge(pid, qty, Integer::sum);
+        }
+
+        // 3. Compare stock against thresholds
+        int lowStockCount = 0;
+        int highStockCount = 0;
+        List<Map<String, Object>> lowStockDetails = new ArrayList<>();
+        List<Map<String, Object>> highStockDetails = new ArrayList<>();
+
+        for (Part part : allParts) {
+            int minStock = part.getMinStock() != null ? part.getMinStock() : 0;
+            int maxStock = part.getMaxStock() != null ? part.getMaxStock() : 0;
+            int stock = partStock.getOrDefault(part.getId(), 0);
+
+            if (minStock > 0 && stock <= minStock) {
+                lowStockCount++;
+                Map<String, Object> detail = new LinkedHashMap<>();
+                detail.put("partId", part.getId());
+                detail.put("partCode", part.getCode());
+                detail.put("partName", part.getName());
+                detail.put("currentStock", stock);
+                detail.put("threshold", minStock);
+                lowStockDetails.add(detail);
+            }
+
+            if (maxStock > 0 && stock >= maxStock) {
+                highStockCount++;
+                Map<String, Object> detail = new LinkedHashMap<>();
+                detail.put("partId", part.getId());
+                detail.put("partCode", part.getCode());
+                detail.put("partName", part.getName());
+                detail.put("currentStock", stock);
+                detail.put("threshold", maxStock);
+                highStockDetails.add(detail);
+            }
+        }
+
+        kpi.put("lowStockCount", lowStockCount);
+        kpi.put("highStockCount", highStockCount);
+        kpi.put("lowStockDetails", lowStockDetails);
+        kpi.put("highStockDetails", highStockDetails);
     }
 }

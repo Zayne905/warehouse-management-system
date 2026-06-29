@@ -25,6 +25,22 @@
     </el-tabs>
 
     <div class="tab-actions">
+      <el-dropdown trigger="click" @command="handleUserCommand">
+        <span class="user-trigger">
+          <el-icon><UserFilled /></el-icon>
+          <span class="user-name">{{ authStore.nickname || '用户' }}</span>
+          <el-icon><ArrowDown /></el-icon>
+        </span>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="logout">
+              <el-icon><SwitchButton /></el-icon>
+              退出登录
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+
       <el-dropdown trigger="click" @command="handleDropdownCommand">
         <span class="dropdown-trigger">
           <el-icon><ArrowDown /></el-icon>
@@ -44,11 +60,22 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useTabsStore } from '@/stores/tabs'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
+import { ArrowDown, UserFilled, SwitchButton } from '@element-plus/icons-vue'
 import type { TabsPaneContext } from 'element-plus'
 
 const router = useRouter()
 const tabsStore = useTabsStore()
+const authStore = useAuthStore()
+
+function handleUserCommand(command: string) {
+  if (command === 'logout') {
+    authStore.logout()
+    tabsStore.tabs = tabsStore.tabs.filter(t => !t.closable)
+    tabsStore.activeTab = '/dashboard'
+    router.push('/login')
+  }
+}
 
 function handleTabClick(pane: TabsPaneContext) {
   const path = pane.paneName as string
@@ -128,5 +155,23 @@ function handleDropdownCommand(command: string) {
 }
 .dropdown-trigger:hover {
   background-color: #f0f2f5;
+}
+.user-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #606266;
+  white-space: nowrap;
+}
+.user-trigger:hover {
+  color: #409EFF;
+}
+.user-name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

@@ -100,6 +100,8 @@ public class InventoryService {
             vo.setSpec(part.getSpec());
             vo.setUnit(part.getUnit());
             vo.setPackageCapacity(part.getPackageCapacity() != null ? part.getPackageCapacity() : 1);
+            vo.setMinStock(part.getMinStock());
+            vo.setMaxStock(part.getMaxStock());
 
             int boxCount = partBoxCount.getOrDefault(partId, 0);
             BigDecimal totalQty = partTotalQty.getOrDefault(partId, BigDecimal.ZERO);

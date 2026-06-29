@@ -5,6 +5,9 @@
       <el-button size="small" type="primary" @click="openDialog" :disabled="!supplierId">
         <el-icon><Plus /></el-icon>添加零件
       </el-button>
+      <el-button size="small" type="success" @click="openBatchImport" :disabled="!supplierId">
+        <el-icon><Upload /></el-icon>批量导入
+      </el-button>
     </div>
 
     <!-- 主表格：只显示已添加的零件 -->
@@ -142,15 +145,26 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 批量导入弹窗 -->
+    <BatchImportDialog
+      v-if="batchImportVisible"
+      :supplier-id="supplierId"
+      :all-parts="allParts"
+      @import="onBatchImport"
+      @close="batchImportVisible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import { Plus, Delete, Search } from '@element-plus/icons-vue'
+import { Plus, Delete, Search, Upload } from '@element-plus/icons-vue'
 import { getPartListApi } from '@/api/part'
 import { getAreaListApi } from '@/api/warehouseArea'
+import { ElMessage } from 'element-plus'
 import type { Part, WarehouseArea, InboundDetailDTO } from '@/types/inbound'
+import BatchImportDialog, { type ImportedPart } from './BatchImportDialog.vue'
 
 const props = defineProps<{
   supplierId?: number
@@ -322,6 +336,46 @@ function removePart(row: PartRow) {
   row.boxCount = 0
   row.plannedQty = 0
   row.actualQty = 0
+}
+
+// ============ 批量导入 ============
+
+const batchImportVisible = ref(false)
+
+function openBatchImport() {
+  batchImportVisible.value = true
+}
+
+function onBatchImport(importedParts: ImportedPart[]) {
+  let newCount = 0
+  let mergeCount = 0
+
+  allParts.value.forEach(part => {
+    const imported = importedParts.find(p => p.partId === part.id)
+    if (!imported) return
+
+    if (part.checked) {
+      // 已在表格中：合并数量
+      part.plannedQty = round((part.plannedQty || 0) + imported.plannedQty)
+      part.boxCount = round(part.plannedQty / (part.packageCapacity || 1))
+      mergeCount++
+    } else {
+      // 新添加：设置字段
+      part.checked = true
+      part.plannedQty = imported.plannedQty
+      part.boxCount = imported.boxCount
+      part.warehouseAreaId = imported.warehouseAreaId ?? part.warehouseAreaId
+      part.batchNo = imported.batchNo || ''
+      part.lastEdited = 'quantity'
+      newCount++
+    }
+  })
+
+  batchImportVisible.value = false
+  const msgParts: string[] = []
+  if (newCount > 0) msgParts.push(`新增 ${newCount} 个`)
+  if (mergeCount > 0) msgParts.push(`合并 ${mergeCount} 个`)
+  ElMessage.success(`成功导入 ${msgParts.join('，')} 零件`)
 }
 
 // ============ 数量联动 ============

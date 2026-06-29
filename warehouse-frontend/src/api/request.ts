@@ -31,11 +31,18 @@ request.interceptors.response.use(
     return data
   },
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status
+    if (status === 401) {
       localStorage.removeItem('token')
+      ElMessage.error(error.response?.data?.message || '登录已过期，请重新登录')
       router.push('/login')
+      return Promise.reject(error)
     }
-    const msg = error.response?.data?.message || '请求失败'
+    if (status === 403) {
+      ElMessage.error(error.response?.data?.message || '权限不足，请联系管理员')
+      return Promise.reject(error)
+    }
+    const msg = error.response?.data?.message || error.message || '网络请求失败'
     ElMessage.error(msg)
     return Promise.reject(error)
   }

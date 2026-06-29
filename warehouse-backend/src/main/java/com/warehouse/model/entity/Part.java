@@ -14,6 +14,8 @@ public class Part {
     private String unit;
     private String spec;
     private Integer packageCapacity;
+    private Integer minStock;
+    private Integer maxStock;
     private Long warehouseAreaId;
     @TableField(exist = false)
     private String warehouseAreaName;

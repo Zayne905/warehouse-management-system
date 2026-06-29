@@ -33,7 +33,7 @@
       <div v-if="currentMessages.length === 0" class="chat-welcome">
         <p>👋 你好！我是仓库AI助手，可以帮你：</p>
         <ul>
-          <li>查询库存状况</li>
+          <li>查询库存状况和预警</li>
           <li>查看订单进度</li>
           <li>获取今日运营摘要</li>
           <li>搜索零件和供应商</li>
@@ -151,6 +151,7 @@ let abortController: AbortController | null = null
 const quickActions = [
   '今日运营摘要',
   '当前库存概况',
+  '⚠️ 库存预警',
   '最近7天出入库趋势',
   '有哪些待处理的订单？',
 ]

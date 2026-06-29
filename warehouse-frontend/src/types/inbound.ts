@@ -121,6 +121,8 @@ export interface Part {
   unit: string
   spec: string
   packageCapacity?: number
+  minStock?: number
+  maxStock?: number
   warehouseAreaId?: number
   warehouseAreaName?: string
   supplierId?: number
@@ -129,9 +131,12 @@ export interface Part {
 
 // 库区
 export interface WarehouseArea {
-  id: number
+  id?: number
   code: string
   name: string
+  warehouseId?: number
+  warehouseName?: string
+  enabled?: boolean
 }
 
 // 批量操作
@@ -140,6 +145,26 @@ export interface BatchOperationDTO {
   sourceOrderId?: number
   warehouseAreaId?: number
   detailIds?: number[]
+}
+
+// 仓库
+export interface Warehouse {
+  id?: number
+  code: string
+  name: string
+  address?: string
+  adminName?: string
+  enabled?: boolean
+}
+
+// 用户
+export interface User {
+  id?: number
+  username: string
+  password?: string
+  nickname?: string
+  role?: string
+  enabled?: boolean
 }
 
 // 扫描记录

@@ -11,7 +11,16 @@
       <div v-for="alert in alerts" :key="alert.key" class="alert-item" :class="alert.level">
         <el-icon><component :is="alert.icon" /></el-icon>
         <span class="alert-text">{{ alert.text }}</span>
-        <el-tag :type="alert.tagType" size="small">{{ alert.tag }}</el-tag>
+        <el-tag
+          v-if="alert.clickable"
+          :type="alert.tagType"
+          size="small"
+          class="clickable-tag"
+          @click="goToStock"
+        >
+          {{ alert.tag }}
+        </el-tag>
+        <el-tag v-else :type="alert.tagType" size="small">{{ alert.tag }}</el-tag>
       </div>
     </div>
   </el-card>
@@ -19,9 +28,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { WarningFilled, SuccessFilled, InfoFilled } from '@element-plus/icons-vue'
-import type { KpiData } from '@/api/analytics'
+import type { KpiData, ThresholdAlert } from '@/api/analytics'
 
+const router = useRouter()
 const props = defineProps<{
   kpiData: KpiData | null
 }>()
@@ -33,6 +44,11 @@ interface Alert {
   tagType: 'warning' | 'danger' | 'info' | 'success'
   icon: any
   level: string
+  clickable?: boolean
+}
+
+function goToStock() {
+  router.push('/inventory/stock')
 }
 
 const alerts = computed<Alert[]>(() => {
@@ -52,16 +68,78 @@ const alerts = computed<Alert[]>(() => {
     })
   }
 
-  // Low stock (total boxes < 10 could indicate data issue or low inventory)
-  if (d.totalBoxCount < 10 && d.totalBoxCount > 0) {
-    result.push({
-      key: 'lowStock',
-      text: `在库箱数仅 ${d.totalBoxCount}，库存偏低`,
-      tag: '关注',
-      tagType: 'danger',
-      icon: WarningFilled,
-      level: 'danger',
-    })
+  // Low stock alerts — per-part threshold based
+  if (d.lowStockCount > 0) {
+    const parts = d.lowStockDetails || []
+    if (parts.length > 0) {
+      parts.slice(0, 3).forEach((p: ThresholdAlert) => {
+        result.push({
+          key: `lowStock_${p.partId}`,
+          text: `${p.partName}(${p.partCode}) 当前库存 ${p.currentStock}，低于最低储备 ${p.threshold}`,
+          tag: '低储',
+          tagType: 'danger',
+          icon: WarningFilled,
+          level: 'danger',
+        })
+      })
+      if (parts.length > 3) {
+        result.push({
+          key: 'lowStock_more',
+          text: `还有 ${parts.length - 3} 个零件库存过低`,
+          tag: `查看全部 ${d.lowStockCount} 个 →`,
+          tagType: 'danger',
+          icon: WarningFilled,
+          level: 'danger',
+          clickable: true,
+        })
+      }
+    } else {
+      result.push({
+        key: 'lowStock',
+        text: `${d.lowStockCount} 个零件库存低于最低储备`,
+        tag: '低储',
+        tagType: 'danger',
+        icon: WarningFilled,
+        level: 'danger',
+      })
+    }
+  }
+
+  // High stock alerts — per-part threshold based
+  if (d.highStockCount > 0) {
+    const parts = d.highStockDetails || []
+    if (parts.length > 0) {
+      parts.slice(0, 3).forEach((p: ThresholdAlert) => {
+        result.push({
+          key: `highStock_${p.partId}`,
+          text: `${p.partName}(${p.partCode}) 当前库存 ${p.currentStock}，高于最高储备 ${p.threshold}`,
+          tag: '高储',
+          tagType: 'warning',
+          icon: WarningFilled,
+          level: 'warning',
+        })
+      })
+      if (parts.length > 3) {
+        result.push({
+          key: 'highStock_more',
+          text: `还有 ${parts.length - 3} 个零件库存过高`,
+          tag: `查看全部 ${d.highStockCount} 个 →`,
+          tagType: 'warning',
+          icon: WarningFilled,
+          level: 'warning',
+          clickable: true,
+        })
+      }
+    } else {
+      result.push({
+        key: 'highStock',
+        text: `${d.highStockCount} 个零件库存高于最高储备`,
+        tag: '高储',
+        tagType: 'warning',
+        icon: WarningFilled,
+        level: 'warning',
+      })
+    }
   }
 
   // No activity today
@@ -128,5 +206,12 @@ const alerts = computed<Alert[]>(() => {
 .alert-text {
   flex: 1;
   color: #303133;
+}
+
+.clickable-tag {
+  cursor: pointer;
+}
+.clickable-tag:hover {
+  opacity: 0.8;
 }
 </style>
