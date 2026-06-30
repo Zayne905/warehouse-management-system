@@ -14,6 +14,7 @@ import com.warehouse.scanner.ui.scanner.OutboundScannerScreen
 import com.warehouse.scanner.ui.scanner.RepackScannerScreen
 import com.warehouse.scanner.ui.scanner.ScannerScreen
 import com.warehouse.scanner.ui.scanner.TraceScreen
+import com.warehouse.scanner.ui.submit.SubmitScreen
 
 object Routes {
     const val LOGIN = "login"
@@ -23,6 +24,7 @@ object Routes {
     const val BLOCK_UNBLOCK = "block_unblock"
     const val REPACK = "repack"
     const val TRACE = "trace"
+    const val SUBMIT = "submit"
 }
 
 @Composable
@@ -49,6 +51,7 @@ fun AppNavigation() {
                 onNavigateToBlockUnblock = { navController.navigate(Routes.BLOCK_UNBLOCK) },
                 onNavigateToRepack = { navController.navigate(Routes.REPACK) },
                 onNavigateToTrace = { navController.navigate(Routes.TRACE) },
+                onNavigateToSubmit = { navController.navigate(Routes.SUBMIT) },
                 onLogout = {
                     TokenProvider.clear()
                     navController.navigate(Routes.LOGIN) {
@@ -76,6 +79,10 @@ fun AppNavigation() {
 
         composable(Routes.TRACE) {
             TraceScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SUBMIT) {
+            SubmitScreen(onBack = { navController.popBackStack() })
         }
     }
 }

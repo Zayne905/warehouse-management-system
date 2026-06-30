@@ -30,6 +30,10 @@ object TokenProvider {
         get() = prefs?.getString(KEY_ROLE, null)
         set(value) { prefs?.edit()?.putString(KEY_ROLE, value)?.apply() }
 
+    var userId: Long?
+        get() = prefs?.getLong(KEY_USER_ID, -1L)?.let { if (it == -1L) null else it }
+        set(value) { prefs?.edit()?.putLong(KEY_USER_ID, value ?: -1L)?.apply() }
+
     val isLoggedIn: Boolean get() = !token.isNullOrEmpty()
 
     fun clear() {

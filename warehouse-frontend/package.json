@@ -15,11 +15,13 @@
     "echarts": "^6.1.0",
     "element-plus": "^2.7.0",
     "markdown-it": "^14.2.0",
+    "pdf-parse": "^2.4.5",
     "pinia": "^2.1.7",
     "qrcode": "^1.5.4",
     "vue": "^3.4.21",
     "vue-echarts": "^8.0.1",
-    "vue-router": "^4.3.0"
+    "vue-router": "^4.3.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",

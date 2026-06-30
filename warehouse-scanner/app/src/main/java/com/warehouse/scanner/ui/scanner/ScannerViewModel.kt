@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.warehouse.scanner.model.*
 import com.warehouse.scanner.network.RetrofitClient
+import com.warehouse.scanner.network.TokenProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -16,7 +17,7 @@ data class KanbanQrData(
     val partCode: String? = null,
     val partName: String? = null,
     val supplierName: String? = null,
-    val quantity: Int = 0,
+    val quantity: Double = 0.0,
     val warehouseArea: String? = null,
     val inboundOrderNo: String? = null,
     val boxSeq: Int = 0
@@ -27,7 +28,7 @@ data class ScanProgress(
     val partName: String,
     val boxScanned: Int,
     val boxTotal: Int,
-    val quantity: Int = 0,
+    val quantity: Double = 0.0,
     val plannedQty: Double = 0.0,
     val actualQty: Double = 0.0,
     val unit: String = "",
@@ -116,7 +117,7 @@ class ScannerViewModel : ViewModel() {
             try {
                 val body: Map<String, Any> = mapOf(
                     "kanbanNo" to (qr.kanbanNo ?: ""),
-                    "operatorId" to 1
+                    "operatorId" to (TokenProvider.userId ?: 1L)
                 )
                 val res = RetrofitClient.api.scanOutbound(body)
                 if (res.code == 200 && res.data != null) {
@@ -161,7 +162,7 @@ class ScannerViewModel : ViewModel() {
                         warehouseArea = qr.warehouseArea ?: "",
                         inboundOrderNo = qr.inboundOrderNo ?: "",
                         boxSeq = qr.boxSeq,
-                        operatorId = 1 // TODO: 使用当前登录用户ID
+                        operatorId = TokenProvider.userId ?: 1L
                     )
                 )
                 if (res.code == 200 && res.data != null) {

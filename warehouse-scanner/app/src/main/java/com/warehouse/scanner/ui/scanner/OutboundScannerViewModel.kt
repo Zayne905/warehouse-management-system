@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.warehouse.scanner.network.RetrofitClient
+import com.warehouse.scanner.network.TokenProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -120,7 +121,7 @@ class OutboundScannerViewModel : ViewModel() {
             try {
                 val body = buildMap<String, Any> {
                     put("kanbanNo", qr.kanbanNo ?: "")
-                    put("operatorId", 1)
+                    put("operatorId", TokenProvider.userId ?: 1L)
                     put("confirmNonFifo", confirmed)
                     // 如果已选择出库单，传递 orderId
                     _state.value.orderId?.let { put("orderId", it) }

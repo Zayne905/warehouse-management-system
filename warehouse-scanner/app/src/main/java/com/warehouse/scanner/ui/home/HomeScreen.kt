@@ -22,6 +22,7 @@ fun HomeScreen(
     onNavigateToBlockUnblock: () -> Unit,
     onNavigateToRepack: () -> Unit,
     onNavigateToTrace: () -> Unit,
+    onNavigateToSubmit: () -> Unit,
     onLogout: () -> Unit
 ) {
     Scaffold(
@@ -76,6 +77,14 @@ fun HomeScreen(
                 title = "扫码入库",
                 subtitle = "扫描入库单二维码看板，快速完成入库",
                 onClick = onNavigateToScanner
+            )
+
+            // 提交入库入口
+            MenuCard(
+                icon = Icons.Default.CloudUpload,
+                title = "提交入库",
+                subtitle = "查看和删除已提交的扫码记录",
+                onClick = onNavigateToSubmit
             )
 
             // 扫码出库入口

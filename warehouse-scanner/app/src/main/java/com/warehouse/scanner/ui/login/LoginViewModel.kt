@@ -44,6 +44,7 @@ class LoginViewModel : ViewModel() {
                     TokenProvider.token = res.data.token
                     TokenProvider.nickname = res.data.nickname
                     TokenProvider.role = res.data.role
+                    TokenProvider.userId = res.data.id
                     _state.value = s.copy(loading = false, success = true)
                 } else {
                     _state.value = s.copy(

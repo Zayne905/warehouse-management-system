@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.warehouse.scanner.model.ScanItem
 import java.text.DecimalFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,15 +53,34 @@ fun SubmitScreen(
 
             Button(
                 onClick = viewModel::loadScans,
-                enabled = state.orderNo.isNotBlank(),
+                enabled = state.orderNo.isNotBlank() && !state.loading,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("加载已扫记录")
+                if (state.loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("加载中...")
+                } else {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("加载已扫记录")
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // 提示消息
+            if (state.message.isNotEmpty()) {
+                Text(
+                    state.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             if (state.scanRecords.isNotEmpty()) {
                 Text(

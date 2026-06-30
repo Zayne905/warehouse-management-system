@@ -18,6 +18,7 @@ data class LoginRequest(
 )
 
 data class LoginData(
+    val id: Long,
     val token: String,
     val nickname: String,
     val role: String
@@ -47,7 +48,7 @@ data class KanbanScanRequest(
     val partCode: String,
     val partName: String,
     val supplierName: String,
-    val quantity: Int,
+    val quantity: Double,
     val warehouseArea: String,
     val inboundOrderNo: String,
     val boxSeq: Int,
@@ -59,7 +60,7 @@ data class KanbanScanResult(
     val kanbanNo: String,
     val partCode: String,
     val partName: String,
-    val quantity: Int,
+    val quantity: Double,
     val boxSeq: Int,
     val boxScanned: Int,
     val boxTotal: Int,
@@ -80,7 +81,7 @@ data class OutboundScanResult(
     val kanbanNo: String,
     val partCode: String,
     val partName: String,
-    val quantity: Int,
+    val quantity: Double,
     val plannedQty: Double?,
     val actualQty: Double?,
     val autoAdded: Boolean? = false,
